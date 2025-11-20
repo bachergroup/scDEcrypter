@@ -5,6 +5,7 @@ scDEcrypter is a statistical framework and R package designed to detect latent i
 ```R
 library(devtools)
 devtools::install_github("https://github.com/LZHONG25/scDEcrypter")
+library(scDEcrypter)
 ```
 
 ## Author
