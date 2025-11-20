@@ -1,0 +1,16 @@
+---
+title: "scDEcrypter: Detecting latent viral states in scRNA-seq"
+author: "Luer Zhong"
+date: "2025-11-20"
+output: pdf_document
+vignette: >
+  %\VignetteIndexEntry{scDEcrypter}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+
+
+
+
+
