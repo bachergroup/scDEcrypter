@@ -106,7 +106,7 @@ best_lambda <- cv_lambda$best_lambda
 
 ## Run scDEcrypter
 We run scDEcrypter on the pre-processed generation set, with the best tuning parameter. All the results will be saved for downstream infection status prediction and differential expressed gene analysis.
-```{r}
+```{r, eval=FALSE}
 results_generation <- MultiwayMixture(Y = Y_generation_stbl[,top_genes.HVG],
                                       C.obs = splitted_data$C.obs_generation,
                                       V.obs = splitted_data$V.obs_generation,
