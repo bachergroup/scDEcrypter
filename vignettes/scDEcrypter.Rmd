@@ -340,9 +340,111 @@ temp <- subset(temp, Full_Prediction!= "Unknown")
 # Remove cells that did not have good predictions for infection
 ```
 
+# DE Gene Analysis
+
+## Select highly variable genes in the test set
+
+Although HVGs were already selected for model training on the generation set, DE analysis may benefit from considering a broader pool of variable genes across infection states in the test set only. The following steps refine HVG selection exclusively using test set cells.
+```{r, eval=FALSE, tidy = TRUE, tidy.opts = list(width.cutoff = 50)}
+topidx <- apply(top_genesA, 2, function(x) order(x, decreasing = T)[1:3000])
+topidx_g <- apply(topidx, 2, function(x) rownames(top_genesA)[x])
+top_genes.HVG_test <- unique(as.vector(topidx_g))
+
+names(splitted_data$V.obs_test) <- names(splitted_data$C.obs_test)
+```
 
 
+## Identify the subset of cells used for DE testing
+scDEcrypter performs DE only on cells in the test set, and with confidently predicted infection states (e.g., “Infected” or “Bystander”). Users can define which pair of infection status they want to test, if more than 2 infection states exist. 
+
+The DE functions expect numeric class labels. The following code also creates numeric (1, 2, ...) versions of predicted infection states and cell-type labels.
+
+To evaluate gene level likelihoods under different models, scDEcrypter recomputes posterior probabilities (W.test) using only the HVGs for the test set selected above.
+```{r, eval=FALSE, tidy = TRUE, tidy.opts = list(width.cutoff = 50)}
+test_cells <- rownames(Y_test_stbl)
+temp_test <- subset(temp, cellID %in% test_cells & Full_Prediction %in% c("Infected", "Bystander"))
+head(temp_test)
+test_cells <- temp_test$cellID; length(test_cells)
+
+splitted_data__V.obs_test <- ifelse(temp_test$Full_Prediction == "Infected", 1, 
+                                    ifelse(temp_test$Full_Prediction == "Bystander", 2, 3))
+splitted_data__C.obs_test <- temp_test$CellType_pred
+
+W.test <- E.step1(Y_test_stbl[,top_genes.HVG], splitted_data$C.obs_test, 
+                    splitted_data$V.obs_test, M, probs, sigma2)
+```
+
+## Estimate DE model parameters and compute log-likelihoods under the alternative model
+Under the alternative hypothesis, mean gene expression depends on infection state (e.g., infected vs. bystander). These functions estimate:
+
+(1). M.2: mean expression per gene, cell type, and infection status,
+
+(2). sigma2.2: variances,
+
+(3). probs.2: mixture proportions.
+
+We also evaluates the alternative model's log-likelihood for each gene × cell type combination. Each gene obtains six log-likelihood values, one per cell type. 
+
+```{r, eval=FALSE, tidy = TRUE, tidy.opts = list(width.cutoff = 50)}
+M.2 <- DE.mu(Y_test_stbl[test_cells,top_genes.HVG_test], W.test, target_status = c(1,3))
+sigma2.2 <- DE.sigma2(Y_test_stbl[test_cells,top_genes.HVG_test], W.test, M.2)
+probs.2 <- DE.probs(Y_test_stbl[test_cells,top_genes.HVG_test], W.test)
+
+l1 <- as.data.frame(observed.data.loglik.gene_celltype(Y_test_stbl[test_cells, top_genes.HVG_test], M.2, sigma2.2, probs.2,splitted_data__C.obs_test,splitted_data__V.obs_test))
+rownames(l1) <- top_genes.HVG_test
+colnames(l1) <- c("alt_T", "alt_Macrophages", "alt_B", "alt_Epithelial", "alt_Dendritic", "alt_Neutrophils")
+
+```
 
 
+## Estimate DE model parameters and compute log-likelihoods under the null model
+We then repeat the above steps for the null model. Note: under the null hypothesis, mean expression does not differ between infection states, so we use DE.mu.null() instead, which collapses infection states when estimating means.
+```{r, eval=FALSE, tidy = TRUE, tidy.opts = list(width.cutoff = 50)}
+M.2.null <- DE.mu.null(Y_test_stbl[test_cells,top_genes.HVG_test], W.test, target_status = c(1,3))
+sigma2.2 <- DE.sigma2(Y_test_stbl[test_cells,top_genes.HVG_test], W.test, M.2.null)
+
+l0 <- as.data.frame(observed.data.loglik.gene_celltype(Y_test_stbl[test_cells, top_genes.HVG_test], M.2.null, sigma2.2, probs.2, splitted_data__C.obs_test, splitted_data__V.obs_test))
+rownames(l0) <- top_genes.HVG_test
+colnames(l0) <- c("null_T", "null_Macrophages", "null_B", "null_Epithelial", "null_Dendritic",
+                  "null_Neutrophils")
+
+l <- cbind(l1, l0) 
+```
+
+
+## Likelihood-ratio test for differential expression
+Once the alternative and null models have been fitted for each gene and cell type, scDEcrypter performs a cell-type–specific likelihood-ratio test (LRT) to evaluate whether gene expression differs between the two infection states (e.g., infected vs. bystander) within each cell type. The LRT compares:
+
+1. Alternative model: gene expression depends on infection status,
+
+2. Null model: gene expression does not depend on infection status.
+
+The code below computes the LRT statistic for each gene and each cell type, as well as the p-values using the chi-squared distribution. To control the false-discovery rate across thousands of genes, scDEcrypter applies the Benjamini–Hochberg (BH) FDR procedure. In addition to significance testing, scDEcrypter computes the estimated log fold-change in expression between infection states within each cell type.
+```{r, eval=FALSE, tidy = TRUE, tidy.opts = list(width.cutoff = 50)}
+l$lrt_T <- -2*(l$null_T - l$alt_T)
+l$lrt_Macrophages <- -2*(l$null_Macrophages - l$alt_Macrophages)
+l$lrt_B <- -2*(l$null_B - l$alt_B)
+l$lrt_Epithelial <- -2*(l$null_Epithelial - l$alt_Epithelial)
+l$lrt_Dendritic <- -2*(l$null_Dendritic - l$alt_Dendritic)
+l$lrt_Neutrophils <- -2*(l$null_Neutrophils - l$alt_Neutrophils)
+
+l$pvalue_T <- pchisq(l$lrt_T, df = 1, lower.tail = F)
+l$pvalue_Macrophages <- pchisq(l$lrt_Macrophages, df = 1, lower.tail = F)
+l$pvalue_B <- pchisq(l$lrt_B, df = 1, lower.tail = F)
+l$pvalue_Epithelial <- pchisq(l$lrt_Epithelial, df = 1, lower.tail = F)
+l$pvalue_Dendritic <- pchisq(l$lrt_Dendritic, df = 1, lower.tail = F)
+l$pvalue_Neutrophils <- pchisq(l$lrt_Neutrophils, df = 1, lower.tail = F)
+
+l$padj_T <- p.adjust(l$pvalue_T, method = "fdr")
+l$padj_Macrophages <- p.adjust(l$pvalue_Macrophages, method = "fdr")
+l$padj_B <- p.adjust(l$pvalue_B, method = "fdr")
+l$padj_Epithelial <- p.adjust(l$pvalue_Epithelial, method = "fdr")
+l$padj_Dendritic <- p.adjust(l$pvalue_Dendritic, method = "fdr")
+l$padj_Neutrophils <- p.adjust(l$pvalue_Neutrophils, method = "fdr")
+
+logFC_Covid <- logFC_compute(M.2, CellTypes = 1:6)[[1]]
+colnames(logFC_Covid) <- c("logFC_T", "logFC_Macrophages" , "logFC_B", "logFC_Epithelial", "logFC_Dendritic", "logFC_Neutrophils")
+l <- cbind(l, logFC_Covid)
+```
 
 
