@@ -200,38 +200,90 @@ results_generation <- MultiwayMixture(Y = Y_generation_stbl[,top_genes.HVG],
 After estimating the multiway mixture model on the generation set, scDEcrypter predicts infection states for all cells by using their posterior probabilities across the latent viral-status classes. These posterior probabilities summarize how strongly each cell is supported as “infected,” “uninfected,” or (in settings like the COVID dataset) “bystander,” based on both its gene expression and the structure of the mixture model.
 
 To convert these posterior probabilities into labels, scDEcrypter allows users to specify cutoff parameters:
+
+(1). Posterior probability threshold: this cutoff controls how much certainty is required before a cell is assigned to a particular infection class. If a cell has posterior probability ≥ cutoffs for one class, it is labeled as belonging to that class. A higher threshold (e.g., 0.9) leads to more conservative labeling—only the cells with the strongest evidence will be assigned.
+
+(2). Minimum proportion of confidently labeled cells needed: this threshold specifies how many cells in a class must pass the posterior certainty requirement before scDEcrypter considers that class sufficiently well represented for downstream differential expression analysis. For example: ff fewer than 75% of cells assigned to a class meet the posterior cutoff, the class may be flagged as underpowered or unstable. This helps ensure that DE inference is performed only when scDEcrypter’s latent-state predictions are reliable.
+
+Users may adjust these values depending on the dataset and the desired balance between sensitivity and certainty in infection-state assignments.
 ```{r, eval=FALSE}
 cutoffs <- .9
 cell_thresh <- .75
 ```
 
+## Predicting cell type and infection status
+After estimating the mixture model parameters on the generation set, scDEcrypter next predicts (1) cell-type labels and (2) infection-state labels for all cells in the test set. These predicted labels are then used for downstream differential expression analysis.
+
+The following steps extract the fitted mixture model parameters, compute posterior probabilities for all latent states in the test set, and convert them into hard labels.
+
+### Extracting model parameters
+
+These objects contain the estimated quantities from the fitted penalized two-way mixture model:
+
+(1). M: estimated mean expression for each gene, cell-type, and infection-status combination,
+
+(2). sigma2: estimated variances,
+
+(3). probs: estimated mixing proportions,
+
+(4). W.gen: posterior weights for cells in the generation set,
+
+(5). W.test: posterior weights for cells in the test set.
+
+These parameters summarize the inferred latent structure and are used to predict labels for new cells.
 ```{r, eval=FALSE, tidy = TRUE, tidy.opts = list(width.cutoff = 50)}
-M.1 <- results_generation$M_list[[1]]
-sigma2.1 <- results_generation$sigma2_list[[1]]
-probs.1 <- results_generation$probs_list[[1]]
-W.1 <- results_generation$weights_list[[1]]
-
-W.2.test <- E.step1(Y_test_stbl[,top_genes.HVG], splitted_data$C.obs_test, 
-                    splitted_data$V.obs_test, M.1, probs.1, sigma2.1)
-
-W_max_byC <- apply(W.2.test, c(1, 2), max, na.rm = TRUE)
-CellType_pred <- max.col(W_max_byC, ties.method = "first")
-CellType_pred[which(apply(W_max_byC, 1, max) < cell_thresh)] <- 0
-
-temp1 <- as.data.frame(W.2.test[,,1,drop=F]) # infected
-temp2 <- as.data.frame(W.2.test[,,2,drop=F]) # uninfected
-temp3 <- as.data.frame(W.2.test[,,3,drop=F]) # bystander
-
-temp1$Prediction_Infected <- (ifelse(temp1$V1 >= cutoffs | temp1$V2 >= cutoffs | temp1$V3 >= cutoffs | temp1$V4 >= cutoffs | temp1$V5 >= cutoffs | temp1$V6 >= cutoffs, "Infected", "Unknown"))
-temp2$Prediction_Uninfected <- (ifelse(temp2$V1 >= cutoffs | temp2$V2 >= cutoffs | temp2$V3 >= cutoffs | temp2$V4 >= cutoffs | temp2$V5 >= cutoffs | temp2$V6 >= cutoffs, "Uninfected", "Unknown"))
-temp3$Prediction_Bystander <- (ifelse(temp3$V1 >= cutoffs | temp3$V2 >= cutoffs | temp3$V3 >= cutoffs | temp3$V4 >= cutoffs | temp3$V5 >= cutoffs | temp3$V6 >= cutoffs, "Bystander", "Unknown"))
-temp1$Full_Prediction <- "Unknown"
-temp1$Full_Prediction[which(temp1$Prediction_Infected == "Infected")] <- "Infected"
-temp1$Full_Prediction[which(temp2$Prediction_Uninfected == "Uninfected")] <- "Uninfected"
-temp1$Full_Prediction[which(temp3$Prediction_Bystander == "Bystander")] <- "Bystander"
+M <- results_generation$M_list[[1]]
+sigma2 <- results_generation$sigma2_list[[1]]
+probs <- results_generation$probs_list[[1]]
+W.gen <- results_generation$weights_list[[1]]
+W.test <- E.step1(Y_test_stbl[,top_genes.HVG], splitted_data$C.obs_test, 
+                    splitted_data$V.obs_test, M, probs, sigma2)
 ```
 
 
+### Predicting cell type labels
+Step-by-step explanation:
+
+1. Collapse the infection dimension: apply(W.test, c(1, 2), max) finds for each cell and each cell type, the maximum probability across all infection states. This gives a matrix:
+cells × celltypes, containing how strongly each cell is supported as each cell type regardless of infection.
+
+2. Assign cell-type labels: max.col() selects the cell-type with the highest posterior probability.
+
+3. Apply certainty threshold: cells with overall certainty below cell_thresh (e.g., 0.75) are set to 0 (unassigned), ensuring downstream DE tests rely only on confidently predicted cell types.
+```{r, eval=FALSE}
+W_max_byC <- apply(W.test, c(1, 2), max, na.rm = TRUE)
+CellType_pred <- max.col(W_max_byC, ties.method = "first")
+CellType_pred[which(apply(W_max_byC, 1, max) < cell_thresh)] <- 0
+```
+
+### Predicting infection status labels
+Step-by-step explanation:
+
+1. Collapse the cell type dimension: apply(W.test, c(1, 3), max) computes the maximum posterior probability across cell types for each infection state. This produces a cells × infection_states matrix summarizing the evidence for each cell’s infection class.
+
+2. Initialize all cells as "Unknown": this allows us to update prediction labels only when the posterior probability exceeds the cutoff.
+
+3. Assign infection labels by thresholding: for each infection state v, ff a cell has posterior probability ≥ cutoffs (e.g., 0.9), then scDEcrypter assigns the corresponding infection label.
+
+This logic reflects the biological uncertainty in viral studies: even if only a subset of cell-type–specific probabilities are high, the cell can confidently belong to that infection state.
+
+Important notes: the ordering of state_names must correspond to the user's numerical encoding (e.g., 1 = Infected, 2 = Uninfected, 3 = Bystander).
+```{r, eval=FALSE}
+W.byV <- apply(W.test, c(1, 3), max)
+Full_Prediction <- rep("Unknown", nrow(W.byV))
+state_names <- c("Infected", "Uninfected", "Bystander")
+for (v in seq_len(ncol(W.byV))) {
+  Full_Prediction[W.byV[, v] >= cutoffs] <- state_names[v]
+}
+```
+
+
+```{r, eval=FALSE}
+temp1 <- as.data.frame(Full_Prediction)
+temp1$CellType_pred <- CellType_pred
+temp1$cellID <- seurat_obj$cellID[splitted_data$test_idx]
+temp1 <- merge(temp1, seurat_obj@meta.data[splitted_data$test_idx,], by="cellID", all.x=T, sort=F)
+```
 
 
 
