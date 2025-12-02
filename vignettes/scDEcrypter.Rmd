@@ -67,8 +67,8 @@ V.star <- 3
 C.star <- 6
 ```
 
-## Run the pre-process function
-After running this step, scDEcrypter will split the data into one generation set - for parameter estimation, and one test set -  for inference. The inputs are already gathered from the previous steps
+## Run the pre-processing function
+After running this step, scDEcrypter will split the data into one generation set - for parameter estimation, and one test set -  for inference. The inputs are already gathered from the previous steps, and users can choose the variance stablization methods, we use "shifted_log" here.
 ```{r, eval=FALSE}
 prep <- preprocess_scDEcrypter(seurat_obj, C.obs, V.obs, seed, vs_method = "shifted_log")
 
@@ -77,7 +77,7 @@ Y_test_stbl <- prep$Y_test
 splitted_data <- prep$splitted
 ```
 
-Current method: Optimize for HVG across cells within covid samples, within cell types
+Current method: optimizing for highly variable genes (HVG) across cells within covid samples, within cell types. Users can choose other HVG selection methods, but users must perform HVG selection only on the generation set.
 ```{r, eval=FALSE}
 vargroup <- na.omit(seurat_obj$CellType_Label[splitted_data$generation_idx])
 covgroup <- names(which(seurat_obj$Group[splitted_data$generation_idx] == "COVID-19"))
@@ -87,11 +87,12 @@ top_genesA <- sapply(unique(vargroup), function(x)
 
 topidx <- apply(top_genesA, 2, function(x) order(x, decreasing = T)[1:500])
 topidx_g <- apply(topidx, 2, function(x) rownames(top_genesA)[x])
-
 top_genes.HVG <- unique(as.vector(apply(topidx_g, 2, function(x) x[1:50])))
-length(top_genes.HVG)
 ```
 
+
+## Select the best tuning parameter
+Users can self-define a range of potential lambdas, and fit them altogether in the lambda selection function. Users can also choose the maximal number of iterations, and the tolerance for the function to converge. The rest information that the lambda selection function needed is already provided from the previous steps.
 ```{r, eval=FALSE}
 lambda.vec <- c(1e2, 1, 0, 1e-1, 1e-2, 1e-3, 1e-4, 1e-5, 1e-6, 1e-7, 1e-8)
 cv_lambda <- cross_validate_lambda(Y_generation_stbl[,top_genes.HVG],
@@ -101,7 +102,11 @@ cv_lambda <- cross_validate_lambda(Y_generation_stbl[,top_genes.HVG],
                                    tol = 1e-8, C.star, V.star, seed, 
                                    NCORES = 5)
 best_lambda <- cv_lambda$best_lambda
+```
 
+## Run scDEcrypter
+We run scDEcrypter on the pre-processed generation set, with the best tuning parameter. All the results will be saved for downstream infection status prediction and differential expressed gene analysis.
+```{r}
 results_generation <- MultiwayMixture(Y = Y_generation_stbl[,top_genes.HVG],
                                       C.obs = splitted_data$C.obs_generation,
                                       V.obs = splitted_data$V.obs_generation,
