@@ -71,3 +71,39 @@ splitdata <- function(Y, C.obs, V.obs, seed, train_frac = 0.5) {
     test_idx = test_idx
   )
 }
+
+preprocess_scDEcrypter <- function(seurat_obj, C_obs, V_obs, seed, vs_method = "shifted_log")
+{
+  vs_method <- match.arg(vs_method)
+  set.seed(seed)
+  
+  if (!"RNA" %in% names(seurat_obj@assays)) {
+    stop("Seurat object must contain an RNA assay.")
+  }
+  Y <- seurat_obj@assays$RNA$counts
+  splitted <- splitdata(t(Y), C_obs, V_obs, seed)
+  library(transformGamPoi)
+  
+  vs_train <- transformGamPoi(
+    as.matrix(t(splitted$Y_generation),
+              transformation = vs_method,
+              size_factors = "poscounts"
+    ))
+  
+  vs_test <- transformGamPoi(
+    as.matrix(t(splitted$Y_test),
+              transformation = vs_method,
+              size_factors = "poscounts"
+    ))
+  
+  Y_gen_stbl <- t(vs_train)
+  Y_test_stbl <- t(vs_test)
+  rm(vs_train)
+  rm(vs_test)
+  
+  return(list(
+    Y_generation = Y_gen_stbl,
+    Y_test = Y_test_stbl,
+    splitted = splitted
+  ))
+}
