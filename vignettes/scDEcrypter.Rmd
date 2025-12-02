@@ -2,7 +2,9 @@
 title: "scDEcrypter: Detecting latent viral states in scRNA-seq"
 author: "Luer Zhong"
 date: "2025-11-20"
-output: pdf_document
+output:
+  pdf_document:
+    latex_engine: xelatex
 vignette: >
   %\VignetteIndexEntry{scDEcrypter}
   %\VignetteEngine{knitr::rmarkdown}
@@ -10,7 +12,7 @@ vignette: >
 ---
 
 # Introduction
-Detecting infected cells in viral scRNA-seq data is challenging because viral transcripts are often sparse or undetected, leaving most infection labels unknown and limiting downstream differential expression analyses. scDEcrypter is a statistical framework we developed to address this problem by modeling infection status, and optionally other partitioning variables such as cell type. The method uses a penalized multiway mixture model, anchored by a small set of confidently labeled cells, to recover latent infection states with high accuracy even when viral reads are extremely limited. To avoid double-dipping, scDEcrypter employs a data-splitting strategy, using one subset of cells for parameter estimation and another independent subset for differential expression testing. A fast approximate likelihood ratio test is then used to identify infection-associated genes within each cell type. scDEcrypter can improve power, robustness, and biological interpretability. If you use scDEcrypter in published research, please cite:
+Detecting infected cells in viral scRNA-seq data is challenging because viral transcripts are often sparse or undetected, leaving most infection labels unknown and limiting downstream differential expression analyses. scDEcrypter is a statistical framework we developed to address this problem by modeling infection status, and optionally other partitioning variables such as cell type. The method uses a penalized multiway mixture model, anchored by a small set of confidently labeled cells, to recover latent infection states with high accuracy even when viral reads are extremely limited. To avoid double-dipping, scDEcrypter employs a data-splitting strategy, using one subset of cells for parameter estimation and another independent subset for differential expression testing. A fast approximate likelihood ratio test is then used to identify infection-associated genes within each cell type. scDEcrypter can improve power, robustness, and biological interpretability. 
 
 # Run scDEcrypter
 ## Install the package
@@ -22,7 +24,7 @@ library(scDEcrypter)
 ```
 
 ## Required inputs
-Load the Seurat object. We analyzed the COVID-19 nasal wash dataset described in  
+Load the Seurat object. We analyzed the Covid-19 nasal wash dataset described in  
 Gao, Kevin M., *et al.* (2021). *Human nasal wash RNA-Seq reveals distinct cell-specific innate immune responses in influenza versus SARS-CoV-2*. **JCI Insight**, 6(22): e152288.
 
 
@@ -91,7 +93,7 @@ C.star: the total number of categories for the chosen partitioning variable.
 
 These values define the full set of latent and observed combinations that scDEcrypter will learn.
 
-In many viral scRNA-seq datasets, infection status is not simply “infected vs uninfected.” Cells may exhibit transcriptional profiles consistent with an intermediate ‘bystander’ state, where they are not infected but respond to nearby infected cells. As described in the paper, for the COVID-19 nasal wash dataset, we observed: Infected cells (with viral reads), Uninfected cells (from healthy donors), and Bystander cells (from infected individuals, but lacking viral reads). Because distinguishing bystander cells was biologically meaningful, we set the total number of viral status categories as 3. This allows scDEcrypter to infer these three viral states separately and perform differential expression comparisons between them. 
+In many viral scRNA-seq datasets, infection status is not simply “infected vs uninfected.” Cells may exhibit transcriptional profiles consistent with an intermediate ‘bystander’ state, where they are not infected but respond to nearby infected cells. As described in the paper, for the Covid-19 nasal wash dataset, we observed: Infected cells (with viral reads), Uninfected cells (from healthy donors), and Bystander cells (from infected individuals, but lacking viral reads). Because distinguishing bystander cells was biologically meaningful, we set the total number of viral status categories as 3. This allows scDEcrypter to infer these three viral states separately and perform differential expression comparisons between them. 
 
 The partitioning variable (e.g., cell type) can also be partially latent. Users must specify the total number of categories the model should expect for that variable. For this dataset, after grouping fine-grained cell annotations into broader categories, we determined there were 6 cell type categories.
 ```{r, eval=FALSE}
@@ -128,7 +130,7 @@ Y_test_stbl <- prep$Y_test
 splitted_data <- prep$splitted
 ```
 
-scDEcrypter uses a penalized multi-way mixture model, which is computationally efficient and statistically stable when trained on a compact set of informative genes. Therefore, HVG selection is performed only on the generation set, not the full dataset. This prevents information leakage from the test set and preserves the integrity of the data-splitting framework described in the manuscript. For the COVID example, we used a cell-type–aware HVG selection procedure - within each cell type, among COVID-positive samples only, and selected the most variable genes per cell type, then aggregated them. Users may replace the above with any HVG selection method, as long as HVGs are selected only from the generation set, and the resulting HVG set is passed into the model-fitting step. This ensures that downstream inference remains valid and independent from the model training process.
+scDEcrypter uses a penalized multi-way mixture model, which is computationally efficient and statistically stable when trained on a compact set of informative genes. Therefore, HVG selection is performed only on the generation set, not the full dataset. This prevents information leakage from the test set and preserves the integrity of the data-splitting framework described in the manuscript. For the Covid example, we used a cell-type–aware HVG selection procedure - within each cell type, among Covid-positive samples only, and selected the most variable genes per cell type, then aggregated them. Users may replace the above with any HVG selection method, as long as HVGs are selected only from the generation set, and the resulting HVG set is passed into the model-fitting step. This ensures that downstream inference remains valid and independent from the model training process.
 ```{r, eval=FALSE}
 vargroup <- na.omit(seurat_obj$CellType_Label[splitted_data$generation_idx])
 covgroup <- names(which(seurat_obj$Group[splitted_data$generation_idx] == "COVID-19"))
@@ -194,10 +196,10 @@ results_generation <- MultiwayMixture(Y = Y_generation_stbl[,top_genes.HVG],
 ```
 
 
-# Infection status prediction
+# Infection Status Prediction
 
 ## Choosing cutoffs for infection-state prediction
-After estimating the multiway mixture model on the generation set, scDEcrypter predicts infection states for all cells by using their posterior probabilities across the latent viral-status classes. These posterior probabilities summarize how strongly each cell is supported as “infected,” “uninfected,” or (in settings like the COVID dataset) “bystander,” based on both its gene expression and the structure of the mixture model.
+After estimating the multiway mixture model on the generation set, scDEcrypter predicts infection states for all cells by using their posterior probabilities across the latent viral-status classes. These posterior probabilities summarize how strongly each cell is supported as “infected,” “uninfected,” or (in settings like the Covid dataset) “bystander,” based on both its gene expression and the structure of the mixture model.
 
 To convert these posterior probabilities into labels, scDEcrypter allows users to specify cutoff parameters:
 
@@ -228,16 +230,12 @@ These objects contain the estimated quantities from the fitted penalized two-way
 
 (4). W.gen: posterior weights for cells in the generation set,
 
-(5). W.test: posterior weights for cells in the test set.
-
 These parameters summarize the inferred latent structure and are used to predict labels for new cells.
 ```{r, eval=FALSE, tidy = TRUE, tidy.opts = list(width.cutoff = 50)}
 M <- results_generation$M_list[[1]]
 sigma2 <- results_generation$sigma2_list[[1]]
 probs <- results_generation$probs_list[[1]]
 W.gen <- results_generation$weights_list[[1]]
-W.test <- E.step1(Y_test_stbl[,top_genes.HVG], splitted_data$C.obs_test, 
-                    splitted_data$V.obs_test, M, probs, sigma2)
 ```
 
 
@@ -251,6 +249,8 @@ cells × celltypes, containing how strongly each cell is supported as each cell 
 
 3. Apply certainty threshold: cells with overall certainty below cell_thresh (e.g., 0.75) are set to 0 (unassigned), ensuring downstream DE tests rely only on confidently predicted cell types.
 ```{r, eval=FALSE}
+W.test <- E.step1(Y_test_stbl[,top_genes.HVG], splitted_data$C.obs_test, 
+                    splitted_data$V.obs_test, M, probs, sigma2)
 W_max_byC <- apply(W.test, c(1, 2), max, na.rm = TRUE)
 CellType_pred <- max.col(W_max_byC, ties.method = "first")
 CellType_pred[which(apply(W_max_byC, 1, max) < cell_thresh)] <- 0
@@ -277,13 +277,70 @@ for (v in seq_len(ncol(W.byV))) {
 }
 ```
 
-
-```{r, eval=FALSE}
+After obtaining predicted infection states (Full_Prediction) and predicted cell types (CellType_pred), the next step is to assemble these results into a single, user-friendly data frame. This provides a convenient structure for downstream visualization and differential expression analysis. The code below creates a results table that stores the predicted infection label for each cell in the test set, adds the predicted cell-type label, recovers the original cell IDs from the Seurat object and merges the predictions with any existing cell-level metadata (e.g., donor ID, sample group, original fine-level annotation)
+```{r, eval=FALSE, tidy = TRUE, tidy.opts = list(width.cutoff = 50)}
 temp1 <- as.data.frame(Full_Prediction)
 temp1$CellType_pred <- CellType_pred
 temp1$cellID <- seurat_obj$cellID[splitted_data$test_idx]
 temp1 <- merge(temp1, seurat_obj@meta.data[splitted_data$test_idx,], by="cellID", all.x=T, sort=F)
+
+temp_test <- temp1
 ```
+
+
+Then we do the same on the generation set, and combine generation set and the test set.
+```{r, eval=FALSE, tidy = TRUE, tidy.opts = list(width.cutoff = 50)}
+W.gen <- E.step1(Y_generation_stbl[,top_genes.HVG], splitted_data$C.obs_generation, 
+                    splitted_data$V.obs_generation, M, probs, sigma2)
+W_max_byC <- apply(W.gen, c(1, 2), max, na.rm = TRUE)
+CellType_pred <- max.col(W_max_byC, ties.method = "first")
+CellType_pred[which(apply(W_max_byC, 1, max) < cell_thresh)] <- 0
+
+W.byV <- apply(W.gen, c(1, 3), max)
+Full_Prediction <- rep("Unknown", nrow(W.byV))
+state_names <- c("Infected", "Uninfected", "Bystander")
+for (v in seq_len(ncol(W.byV))) {
+  Full_Prediction[W.byV[, v] >= cutoffs] <- state_names[v]
+}
+
+temp2 <- as.data.frame(Full_Prediction)
+temp2$CellType_pred <- CellType_pred
+temp2$cellID <- seurat_obj$cellID[splitted_data$generation_idx]
+temp2 <- merge(temp2, seurat_obj@meta.data[splitted_data$generation_idx,], by="cellID", all.x=T, sort=F)
+
+temp_gen <- temp2
+temp <- rbind(temp_test, temp_gen)
+```
+
+scDEcrypter internally requires that the partitioning variable (e.g., cell type) be coded numerically. However, for interpretation, visualization, and reporting of results, it is far more informative to display human-readable category names instead of integers. The following code converts: the original observed cell-type labels (CellType_Label), and the model-predicted cell-type labels (CellType_pred) from numeric class codes (1–6) into biologically meaningful category names (e.g., "T_cell", "Macrophage").
+```{r, eval=FALSE}
+temp$CellType_Category <- temp$CellType_Label
+temp$CellType_Category[temp$CellType_Category==1] <- "T_cell"
+temp$CellType_Category[temp$CellType_Category==2] <- "Macrophage"
+temp$CellType_Category[temp$CellType_Category==3] <- "B_cell"
+temp$CellType_Category[temp$CellType_Category==4] <- "Epithelial"
+temp$CellType_Category[temp$CellType_Category==5] <- "Dendritic"
+temp$CellType_Category[temp$CellType_Category==6] <- "Neutrophil"
+temp$CellType_Category[is.na(temp$CellType_Category)] <- "Unlabelled"
+
+temp$CellType_Prediction <- temp$CellType_pred
+temp$CellType_Prediction[temp$CellType_pred==1] <- "T_cell"
+temp$CellType_Prediction[temp$CellType_pred==2] <- "Macrophage"
+temp$CellType_Prediction[temp$CellType_pred==3] <- "B_cell"
+temp$CellType_Prediction[temp$CellType_pred==4] <- "Epithelial"
+temp$CellType_Prediction[temp$CellType_pred==5] <- "Dendritic"
+temp$CellType_Prediction[temp$CellType_pred==6] <- "Neutrophil"
+```
+
+After generating predicted infection states and predicted cell-type labels, it is important to ensure that downstream differential expression analysis is performed only on cells whose latent state assignments are sufficiently reliable. The following two filtering steps remove cells with low-confidence or unresolved predictions.
+```{r, eval=FALSE, tidy = TRUE, tidy.opts = list(width.cutoff = 50)}
+temp <- subset(temp, CellType_Prediction!= "0") 
+# Remove cells that did not have good predictions for cell type
+temp <- subset(temp, Full_Prediction!= "Unknown")
+# Remove cells that did not have good predictions for infection
+```
+
+
 
 
 
