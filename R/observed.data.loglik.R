@@ -40,23 +40,23 @@ observed.data.loglik <- function(Y, M, sigma2, probs, C.obs, V.obs){
   cond.probs.row <- probs/rowSums(probs)
   cond.probs.col <- sweep(probs, 2, colSums(probs), FUN = "/")
   tot.contrib.vec <- rep(0, n)
-
-  tot.contrib <- NULL;
+  
+  tot.contrib <- NULL; 
   both_unknown_contrib = 0
   v_unknown_contrib = 0
   c_unknown_contrib = 0
   both_unknown_contrib = 0
-
+  
   # V observed and C observed
-  both_known <- which(!is.na(V.obs) & !is.na(C.obs))
+  both_known <- which(!is.na(V.obs) & !is.na(C.obs)) 
   if (length(both_known) > 0) {
     both_known_contrib <- sapply(both_known, function(index) {
       sum(dnorm(Y[index, ], mean = M[, C.obs[index], V.obs[index]],
                 sd = sqrt(sigma2[, C.obs[index], V.obs[index]]),
-                log = TRUE))
+                log = TRUE)) + log(probs[C.obs[index], V.obs[index]])
     })
   }
-
+  
   # C unknown
   c_unknown <- which(!is.na(V.obs) & is.na(C.obs))
   if (length(c_unknown) > 0) {
@@ -67,7 +67,7 @@ observed.data.loglik <- function(Y, M, sigma2, probs, C.obs, V.obs){
         log(cond.probs.col[cc, V.obs[i]])}, combos$i, combos$cc)
     c_unknown_contrib <- tapply(combos$c_unknown_contrib, combos$i, logSumExp)
   }
-
+  
   # V unknown
   v_unknown <- which(is.na(V.obs) & !is.na(C.obs))
   if (length(v_unknown) > 0) {
@@ -78,7 +78,7 @@ observed.data.loglik <- function(Y, M, sigma2, probs, C.obs, V.obs){
         log(cond.probs.row[C.obs[i], v])}, combos$i, combos$v)
     v_unknown_contrib <- tapply(combos$v_unknown_contrib, combos$i, logSumExp)
   }
-
+  
   # Both unknown
   both_unknown <- which(is.na(V.obs) & is.na(C.obs))
   if (length(both_unknown) > 0) {
@@ -89,10 +89,10 @@ observed.data.loglik <- function(Y, M, sigma2, probs, C.obs, V.obs){
         log(probs[cc, v])}, combos$i, combos$v, combos$cc)
     both_unknown_contrib <- tapply(combos$both_unknown_contrib, combos$i, logSumExp)
   }
-
+  
   # Sum together
-  tot.contrib <- sum(c(both_unknown_contrib, v_unknown_contrib,
-                       c_unknown_contrib, both_unknown_contrib))
-
+  tot.contrib <- sum(c(both_unknown_contrib, v_unknown_contrib, 
+                       c_unknown_contrib, both_known_contrib))
+  
   return(tot.contrib)
 }

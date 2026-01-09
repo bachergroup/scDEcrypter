@@ -34,14 +34,14 @@ MultiwayMixture_nopenalty <- function(Y, C.obs, V.obs, max.iter, tol, C.star, V.
   M <- array(0, dim=c(dim(Y)[2], C.star, V.star))
   sigma2 <- array(1, dim=c(dim(Y)[2], C.star, V.star))
   probs <- matrix(1/(C.star*V.star), C.star, V.star)
-
+  
   n <- nrow(Y)
   p <- ncol(Y)
-
+  
   C.levels <- sort(unique(na.omit(C.obs)))
   idxC <- which(!is.na(C.obs)) # cells with known C
   idxNoC <- which(is.na(C.obs)) # cells with unknown C
-
+  
   # mean by cell type when C.obs not NA
   mean_by_C <- function(rows) {
     keep <- intersect(rows, idxC)
@@ -55,13 +55,13 @@ MultiwayMixture_nopenalty <- function(Y, C.obs, V.obs, max.iter, tol, C.star, V.
     colnames(Mmat) <- colnames(Y)
     as.matrix(Mmat)
   }
-
+  
   # Overall mean by C.obs (ignoring V)
-  cmeans_byC <- mean_by_C(idxC)
-
+  cmeans_byC <- mean_by_C(idxC)           
+  
   # Global mean (ignoring C.obs and V.obs)
-  g_vec  <- colMeans(Y, na.rm = TRUE)
-
+  g_vec  <- colMeans(Y, na.rm = TRUE)   
+  
   fill_na_hier <- function(A, overall_byC, byV_vec, global_vec) {
     # 1. Fill v1_byC or v2_byC if both V and C known
     # 2. Fill overall mean by C.obs when V unknown
@@ -82,19 +82,19 @@ MultiwayMixture_nopenalty <- function(Y, C.obs, V.obs, max.iter, tol, C.star, V.
     }
     A
   }
-
-  V.levels <- sort(unique(na.omit(V.obs)))
+  
+  V.levels <- 1:V.star
   for (vi in seq_along(V.levels)) {
     v <- V.levels[vi]
     idxV <- which(V.obs == v)
-
+    
     v_byC <- mean_by_C(idxV)
     v_vec <- colMeans(Y[idxV, , drop=FALSE], na.rm=TRUE)
     v_byC_filled <- fill_na_hier(v_byC, cmeans_byC, v_vec, g_vec)
-
+    
     M[, , vi] <- t(v_byC_filled)
   }
-
+  
   for(mm in 1:max.iter){
     W1 <- E.step1(Y, C.obs, V.obs, M, probs, sigma2)
     probs.new <- M.step.probs(Y, W1)
@@ -110,12 +110,12 @@ MultiwayMixture_nopenalty <- function(Y, C.obs, V.obs, max.iter, tol, C.star, V.
     sigma2 <- sigma2.new
     probs <- probs.new
   }
-
+  
   weights <- E.step1(Y, C.obs, V.obs, M, probs, sigma2)
-
+  
   return(list(
     "M" = M.new,
-    "sigma2" = sigma2.new,
+    "sigma2" = sigma2.new, 
     "probs" = probs.new,
     "weights" = weights
   ))

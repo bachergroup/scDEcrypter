@@ -44,13 +44,13 @@ MultiwayMixture <- function(Y, C.obs, V.obs, max.iter, tol, C.star, V.star, seed
   probs_lambda_list <- list()
   weights_lambda_list <- list()
   tmp <- MultiwayMixture_nopenalty(Y, C.obs, V.obs, max.iter, tol, C.star, V.star, seed)
-
+  
   for(lambda in lambda.vec) {
-
+    
     M <- tmp$M
     sigma2 <- tmp$sigma2
     probs <- tmp$probs
-
+    
     for(mm in 1:max.iter){
       print("E.step")
       W1 <- E.step1(Y, C.obs, V.obs, M, probs, sigma2)
@@ -62,8 +62,8 @@ MultiwayMixture <- function(Y, C.obs, V.obs, max.iter, tol, C.star, V.star, seed
       sigma2.new <- M.step.variance(Y, W1, M.new)
       print(mm)
       # log_likelihood <- observed.data.loglik(Y, M.new, sigma2.new, probs.new, C.obs, V.obs) - lambda*penalty.func(M.new)
-      log_likelihood <- observed.data.loglik(Y, M.new, sigma2.new, probs.new, C.obs, V.obs)
-
+      log_likelihood <- observed.data.loglik(Y, M.new, sigma2.new, probs.new, C.obs, V.obs) 
+      
       cat(log_likelihood, "\n")
       cat(sum((M - M.new)^2)/sum(M^2), "\n")
       if(sum((M - M.new)^2)/sum(M^2) < tol){
@@ -73,18 +73,18 @@ MultiwayMixture <- function(Y, C.obs, V.obs, max.iter, tol, C.star, V.star, seed
       sigma2 <- sigma2.new
       probs <- probs.new
     }
-
+    
     weights <- E.step1(Y, C.obs, V.obs, M, probs, sigma2)
-
+    
     M_lambda_list[[as.character(lambda)]] <- M.new
     sigma2_lambda_list[[as.character(lambda)]] <- sigma2.new
     probs_lambda_list[[as.character(lambda)]] <- probs.new
     weights_lambda_list[[as.character(lambda)]] <- weights
   }
-
+  
   return(list(
     "M_list" = M_lambda_list,
-    "sigma2_list" = sigma2_lambda_list,
+    "sigma2_list" = sigma2_lambda_list, 
     "probs_list" = probs_lambda_list,
     "weights_list" = weights_lambda_list
   ))

@@ -69,3 +69,41 @@ observed.data.loglik.gene_celltype <- function (Y, M, sigma2, probs, Condition, 
 
   return(LL_gene_celltype)
 }
+
+#' @export
+approx.complete.data.loglik <- function (Y, M, W, sigma2, C.obs, V.obs){
+
+    p_num_genes <- dim(Y)[2]
+    C.dim <- dim(M)[2]
+    V.dim <- dim(M)[3]
+    
+    if (length(unique(C.obs[!is.na(C.obs)])) != C.dim) {
+        warning(paste0(
+            "Number of unique C.obs labels does not match that in the mean matrix."
+        ))
+    }
+    if (length(unique(V.obs[!is.na(V.obs)])) != V.dim) {
+        warning(paste0(
+            "Number of unique V.obs labels does not match that in the mean matrix."
+        ))
+    }
+    
+    LL_gene_celltype <- matrix(0, nrow = p_num_genes, ncol = C.dim)
+    
+    for (cc in 1:C.dim) {
+      tot.contrib_1 <- array(0, dim=c(p_num_genes, V.dim))
+      log_likelihood_kc <- NULL
+      for(kk in 1:p_num_genes){
+          for(vv in 1:V.dim) {
+              all_cells_ll <- dnorm(Y[, kk],
+                                    mean = M[kk, cc, vv],
+                                    sd   = sqrt(sigma2[kk, cc, vv]),
+                                    log  = TRUE) * W[, cc, vv]
+              all_cells_ll <- all_cells_ll[is.finite(all_cells_ll)]
+              tot.contrib_1[kk,vv] <- sum(all_cells_ll)
+           }
+      }
+      LL_gene_celltype[, cc] <- rowSums(tot.contrib_1)
+    }
+    return(LL_gene_celltype)
+}

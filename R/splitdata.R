@@ -34,17 +34,17 @@ splitdata <- function(Y, C.obs, V.obs, seed, train_frac = 0.5) {
   set.seed(seed)
   n <- nrow(Y)
   V.levels <- sort(unique(na.omit(V.obs)))
-
+  
   generation_idx <- c()
   test_idx <- c()
-
+  
   for (v in V.levels) {
     idx_v <- which(V.obs == v)
     n_v <- length(idx_v)
     n_train <- round(train_frac * n_v)
     train_idx_v <- sample(idx_v, n_train)
     test_idx_v <- setdiff(idx_v, train_idx_v)
-
+    
     generation_idx <- c(generation_idx, train_idx_v)
     test_idx <- c(test_idx, test_idx_v)
   }
@@ -55,11 +55,11 @@ splitdata <- function(Y, C.obs, V.obs, seed, train_frac = 0.5) {
     n_train_na <- round(train_frac * n_na)
     train_idx_na <- sample(idx_na, n_train_na)
     test_idx_na <- setdiff(idx_na, train_idx_na)
-
+    
     generation_idx <- c(generation_idx, train_idx_na)
     test_idx <- c(test_idx, test_idx_na)
   }
-
+  
   list(
     Y_generation = Y[generation_idx, , drop = FALSE],
     C.obs_generation = C.obs[generation_idx],
@@ -71,6 +71,7 @@ splitdata <- function(Y, C.obs, V.obs, seed, train_frac = 0.5) {
     test_idx = test_idx
   )
 }
+  
 
 preprocess_scDEcrypter <- function(seurat_obj, C_obs, V_obs, seed, vs_method = "shifted_log")
 {

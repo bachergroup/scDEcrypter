@@ -15,6 +15,7 @@
 #'   sample \eqn{i}.
 #' @param M A numeric array of dimension \eqn{(p \times C \times V)}
 #'   representing the estimated mean expression values.
+#' @param target_status list of groups.
 #'
 #' @return A numeric array of dimension \eqn{(p \times C \times V)}
 #'   containing the weighted mean expression values.
@@ -31,28 +32,57 @@
 #'   under condition \eqn{v}.
 #'
 #' @export
-DE.mu <- function(Y, W) {
-  M.out <- array(0, c(dim(Y)[2], dim(W)[2], dim(W)[3]))
-  for (j in 1:dim(Y)[2]) {
-    M.out[j,,] <- apply(W * Y[, j], c(2, 3), sum) / apply(W, c(2, 3), sum)
-  }
-  return(M.out)
-}
-
-DE.mu.null <- function (Y, W)  {
+DE.mu <- function(Y, W, target_status) {
   V_dim <- dim(W)[3]
   M_out <- array(0, c(dim(Y)[2], dim(W)[2], V_dim))
   
-  W_combined <- apply(W, c(1, 2), mean)
-  W_combined <- array(rep(W_combined, V_dim),
-                      dim = c(nrow(W_combined),
-                              ncol(W_combined),
-                              V_dim))
-  
-  denominator1 <- apply(W_combined, c(2, 3), sum)
-  for (j in 1:ncol(Y)) {
-    M_out[j, , ] <- apply(W_combined * Y[, j], c(2, 3), sum) / denominator1
+  for (j in 1:dim(Y)[2]) {
+    M_out[j, , target_status] <- apply(W[, , target_status] * Y[, j], c(2, 3), sum) /
+      apply(W[, , target_status], c(2, 3), sum)
   }
+  
+  rest_status <- setdiff(1:V_dim, target_status)
+  if (length(rest_status) > 0) {
+    W_rest <- apply(W[, , rest_status, drop = FALSE], c(1, 2), mean)
+    W_rest <- array(rep(W_rest, length(rest_status)),
+                    dim = c(nrow(W_rest), ncol(W_rest), length(rest_status)))
+    
+    denom_rest <- apply(W_rest, c(2, 3), sum)
+    for (j in 1:ncol(Y)) {
+      M_out[j, , rest_status] <- apply(W_rest * Y[, j], c(2, 3), sum) / denom_rest
+    }
+  }
+  
+  return(M_out)
+}
+DE.mu.null <- function(Y, W, target_status) {
+  V_dim <- dim(W)[3]
+  M_out <- array(0, c(dim(Y)[2], dim(W)[2], V_dim))
+
+  W_combined <- apply(W[, , target_status, drop = FALSE], c(1, 2), mean)
+
+  W_combined_array <- array(rep(W_combined, length(target_status)),
+                            dim = c(nrow(W_combined), ncol(W_combined), length(target_status)))
+
+  denom_combined <- apply(W_combined_array, c(2, 3), sum)
+
+  for (j in 1:ncol(Y)) {
+    shared_mean <- apply(W_combined_array * Y[, j], c(2, 3), sum) / denom_combined
+    M_out[j, , target_status] <- shared_mean
+  }
+
+  rest_status <- setdiff(1:V_dim, target_status)
+  if (length(rest_status) > 0) {
+    W_rest <- apply(W[, , rest_status, drop = FALSE], c(1, 2), mean)
+    W_rest <- array(rep(W_rest, length(rest_status)),
+                    dim = c(nrow(W_rest), ncol(W_rest), length(rest_status)))
+
+    denom_rest <- apply(W_rest, c(2, 3), sum)
+    for (j in 1:ncol(Y)) {
+      M_out[j, , rest_status] <- apply(W_rest * Y[, j], c(2, 3), sum) / denom_rest
+    }
+  }
+
   return(M_out)
 }
 
@@ -63,7 +93,7 @@ DE.sigma2 <- function(Y, W, M){
   for(kk in 1:p){
     for(c.ind in 1:dim(M)[2]){
       for(v.ind in 1:dim(M)[3]){
-        sigma2[kk, c.ind, v.ind] <- max(sum(W[, c.ind, v.ind] * (Y[, kk] - M[kk, c.ind, v.ind])^2) / W.tot[c.ind, v.ind], 1e-10)
+        sigma2[kk, c.ind, v.ind] <- max(sum(W[, c.ind, v.ind] * (Y[, kk] - M[kk, c.ind, v.ind])^2) / W.tot[c.ind, v.ind], .1)      
       }
     }
   }

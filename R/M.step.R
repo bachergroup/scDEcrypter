@@ -55,13 +55,13 @@ update_mu <- function(Y, M, sigma2, W, lambda) {
     # print(j)
   }
 
-  M_out <- array(0, dim = c(p, C_dim, V_dim))
-  for (j in 1:p) {
-    for (c in 1:C_dim) {
-      M_out[j, c, ] <- mu_j_mat[j, c, ]
-    }
-  }
-  return(M_out)
+  # M_out <- array(0, dim = c(p, C_dim, V_dim))
+#   for (j in 1:p) {
+#     for (c in 1:C_dim) {
+#       M_out[j, c, ] <- mu_j_mat[j, c, ]
+#     }
+#   }
+  return(mu_j_mat)
 }
 
 update_mu_nopenalty <- function(Y, M, sigma2, W){
@@ -73,19 +73,19 @@ update_mu_nopenalty <- function(Y, M, sigma2, W){
 }
 
 M.step.variance <- function(Y, W, M){
-  p <- dim(Y)[2]
-  sigma2 <- array(0, dim=dim(M))
-  W.tot <- apply(W, c(2,3), sum)
-  for(kk in 1:p){
-    for(c.ind in 1:dim(M)[2]){
-      for(v.ind in 1:dim(M)[3]){
-        #weighted_mean <- sum(Y[,kk]*W[,c.ind,v.ind])/W.tot[c.ind, v.ind]
-        sigma2[kk, c.ind, v.ind] <- max(sum(W[, c.ind, v.ind] * (Y[, kk] - M[kk, c.ind, v.ind])^2) / W.tot[c.ind, v.ind], 1e-10)
-      }
-    }
-  }
-  return(sigma2)
-}
+	p <- dim(Y)[2]
+	sigma2 <- array(0, dim=dim(M))
+	W.tot <- apply(W, c(2,3), sum)
+	for(kk in 1:p){
+	  for(c.ind in 1:dim(M)[2]){
+	    for(v.ind in 1:dim(M)[3]){
+	      #weighted_mean <- sum(Y[,kk]*W[,c.ind,v.ind])/W.tot[c.ind, v.ind]
+	      sigma2[kk, c.ind, v.ind] <- max(sum(W[, c.ind, v.ind] * (Y[, kk] - M[kk, c.ind, v.ind])^2) / W.tot[c.ind, v.ind], .1)
+	    }
+	  }
+	}
+	return(sigma2)
+	}
 
 M.step.probs <- function(Y, W){
   apply(W, c(2,3), sum)/dim(Y)[1]
