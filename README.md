@@ -1,17 +1,18 @@
-# scDEcrypter: to detect latent viral infection in scRNA-seq data
-scDEcrypter is a statistical framework and R package designed to detect latent infection states in single-cell RNA-seq (scRNA-seq) data and perform robust differential expression (DE) analysis when cell-level labels are incomplete.
+# scDEcrypter: Uncertainty-aware differential expression analysis for viral infection in scRNA-seq
+scDEcrypter models infection status and other cell-level variables as latent variables with partial observability. scDEcrypter implements a regularized two-way mixture model, where mixture weights estimate cells' probabilistic membership to combinations of cell states (e.g., infection status and cell type). The resulting weights are used to estimate cell-state-specific mean expression profiles and to account for cell-state uncertainty in differential expression testing.
 
-Additional details and a FAQ for scDEcrypter are described in the vignette: https://github.com/LZHONG25/scDEcrypter/blob/main/vignettes/scDEcrypter.pdf
+Additional details and a FAQ for scDEcrypter are described in the vignette: https://github.com/bachergroup/scDEcrypter/blob/main/vignettes/scDEcrypter.pdf
 
 ## Installation
 ```R
 library(devtools)
-devtools::install_github("https://github.com/LZHONG25/scDEcrypter")
+devtools::install_github("https://github.com/bachergroup/scDEcrypter")
 library(scDEcrypter)
 ```
 
 ## Author
 Luer Zhong <luerzhong@ufl.edu>
+
 Rhonda Bacher <rbacher@ufl.edu>
 
 ## Cite

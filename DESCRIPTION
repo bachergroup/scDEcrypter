@@ -1,10 +1,26 @@
 Package: scDEcrypter
-Title: An R package uses limited information to predict virus cell infection, and does differentially expressed gene expression analysis.
-Version: 0.1.0
+Title: An R package uses limited information to predict virus cell infection, and does differentially expressed gene expression analysis
+Version: 0.3.0
 Authors@R: 
     person("Luer", "Zhong", , "luerzhong@ufl.edu", role = c("aut", "cre"))
 Description: What the package does (one paragraph).
-License: MIT + file LICENSE
+License: CC BY 4.0 + file LICENSE
 Encoding: UTF-8
+Depends: 
+    R (>= 4.0)
+LazyData: true
+LazyDataCompression: bzip2
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.3.2
+VignetteBuilder: knitr
+Suggests:
+    knitr,
+    rmarkdown
+Imports:
+    stats,
+    utils,
+    matrixStats,
+    caret,
+    transformGamPoi,
+    Seurat (>= 5.0.0),
+    pbmcapply

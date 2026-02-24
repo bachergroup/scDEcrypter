@@ -1,1 +1,7 @@
 .Rproj.user
+.Rhistory
+.Rapp.history
+.RData
+.RDataTmp
+.DS_Store
+Thumbs.db
