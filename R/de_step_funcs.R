@@ -16,54 +16,21 @@
 #' @param sigma2 Numeric 3-dimensional array of estimated variance parameters with 
 #'   dimensions (genes x cell types x viral types), containing the variance of gene 
 #'   expression for each combination of gene, cell type, and viral type.
-#' @param c_obs Integer vector of length matching the number of cells, giving the 
-#'   observed cell type labels for each cell (may contain \code{NA}).
-#' @param v_obs Integer vector of length matching the number of cells, giving the 
-#'   observed viral type labels for each cell (may contain \code{NA}).
 #'
 #' @return A numeric matrix with dimensions (genes x cell types) containing the 
 #'   approximate log-likelihood contribution for each gene in each cell type, 
 #'   aggregated across viral types and weighted by the assignment weights.
 #'
-#' @importFrom stats dnorm
 #' @keywords internal
-approx_complete_data_loglik <- function (Y, M, W, sigma2, c_obs, v_obs){
-
-    n_genes <- dim(Y)[2]
-    c_dim <- dim(M)[2]
-    v_dim <- dim(M)[3]
-    
-    if (length(unique(c_obs[!is.na(c_obs)])) != c_dim) {
-        warning(paste0(
-            "Number of unique c_obs labels does not match that in the mean matrix."
-        ))
-    }
-    if (length(unique(v_obs[!is.na(v_obs)])) != v_dim) {
-        warning(paste0(
-            "Number of unique v_obs labels does not match that in the mean matrix."
-        ))
-    }
-    
-    ll_gene_celltype <- matrix(0, nrow = n_genes, ncol = c_dim)
-    
-    for (cc in seq_len(c_dim)) {
-      tot_contrib_1 <- array(0, dim=c(n_genes, v_dim))
-      log_likelihood_kc <- NULL
-      for(kk in seq_len(n_genes)){
-          for(vv in seq_len(v_dim)) {
-              all_cells_ll <- dnorm(Y[, kk],
-                                    mean = M[kk, cc, vv],
-                                    sd   = sqrt(sigma2[kk, cc, vv]),
-                                    log  = TRUE) * W[, cc, vv]
-              all_cells_ll <- all_cells_ll[is.finite(all_cells_ll)]
-              tot_contrib_1[kk,vv] <- sum(all_cells_ll)
-           }
-      }
-      ll_gene_celltype[, cc] <- rowSums(tot_contrib_1)
-    }
-    rownames(ll_gene_celltype) <- dimnames(M)[[1]]
-    colnames(ll_gene_celltype) <- dimnames(M)[[2]]
-    return(ll_gene_celltype)
+#' @export
+approx_complete_data_loglik_fast <- function(Y, M, W, sigma2) {
+  Y <- as.matrix(Y)
+  storage.mode(Y) <- "double"
+  resout <- approx_complete_data_loglik_rcpp(Y, M, W, sigma2)
+  
+  rownames(resout) <- dimnames(M)[[1]]
+  colnames(resout) <- dimnames(M)[[2]]
+  return(resout)
 }
 
 #' Estimate Mean Expression per Gene, Cell Type, and Condition (DE)
@@ -96,29 +63,53 @@ approx_complete_data_loglik <- function (Y, M, W, sigma2, c_obs, v_obs){
 #' using mean weights to account for condition effects.
 #'
 #' keywords internal
+resolve_comp_status_indices <- function(W, compStatus) {
+  if (is.character(compStatus)) {
+    status_names <- dimnames(W)[[3]]
+    if (is.null(status_names)) {
+      stop("Character compStatus requires named condition levels in W.")
+    }
+    comp_idx <- match(compStatus, status_names)
+    if (anyNA(comp_idx)) {
+      stop("All compStatus values must match condition names in W.")
+    }
+    return(comp_idx)
+  }
+
+  comp_idx <- as.integer(compStatus)
+  if (anyNA(comp_idx) || any(comp_idx < 1L | comp_idx > dim(W)[3])) {
+    stop("compStatus indices must be between 1 and the number of conditions.")
+  }
+
+  comp_idx
+}
+
+weighted_means_from_weights <- function(Y, weights) {
+  weight_sums <- colSums(weights)
+  weighted_totals <- t(crossprod(weights, Y))
+  sweep(weighted_totals, 2, weight_sums, "/")
+}
+
 DE_mu <- function(Y, W, compStatus) {
- 
-    M_out <- array(0, c(dim(Y)[2], dim(W)[2], dim(W)[3]),
-                   dimnames = list(colnames(Y), dimnames(W)[[2]], dimnames(W)[[3]]))
-    
-    for (j in seq_len(dim(Y)[2])) {
-        M_out[j, , compStatus] <- apply(W[, , compStatus] * Y[, j], c(2, 3), sum) /
-            apply(W[, , compStatus], c(2, 3), sum)
+  comp_idx <- resolve_comp_status_indices(W, compStatus)
+  rest_idx <- setdiff(seq_len(dim(W)[3]), comp_idx)
+
+  M_out <- array(0, c(dim(Y)[2], dim(W)[2], dim(W)[3]),
+                 dimnames = list(colnames(Y), dimnames(W)[[2]], dimnames(W)[[3]]))
+
+  for (status_idx in comp_idx) {
+    M_out[, , status_idx] <- weighted_means_from_weights(Y, W[, , status_idx, drop = FALSE][, , 1])
+  }
+
+  if (length(rest_idx) > 0) {
+    W_rest <- apply(W[, , rest_idx, drop = FALSE], c(1, 2), mean)
+    rest_means <- weighted_means_from_weights(Y, W_rest)
+    for (status_idx in rest_idx) {
+      M_out[, , status_idx] <- rest_means
     }
-    
-    rest_status <- setdiff(dimnames(W)[[3]], compStatus)
-    if (length(rest_status) > 0) {
-        W_rest <- apply(W[, , rest_status, drop = FALSE], c(1, 2), mean)
-        W_rest <- array(rep(W_rest, length(rest_status)),
-                        dim = c(nrow(W_rest), ncol(W_rest), length(rest_status)))
-        
-        denom_rest <- apply(W_rest, c(2, 3), sum)
-        for (j in seq_len(ncol(Y))) {
-            M_out[j, , rest_status] <- apply(W_rest * Y[, j], c(2, 3), sum) / denom_rest
-        }
-    }
-    
-    return(M_out)
+  }
+
+  M_out
 }
 
 #' Estimate Mean Expression Under Null Hypothesis (DE)
@@ -149,35 +140,27 @@ DE_mu <- function(Y, W, compStatus) {
 #'
 #' @keywords internal
 DE_mu_null <- function(Y, W, compStatus) {
-  V_dim <- dim(W)[3]
-  M_out <- array(0, c(dim(Y)[2], dim(W)[2], V_dim),
-                   dimnames = list(colnames(Y), dimnames(W)[[2]], dimnames(W)[[3]]))
+  comp_idx <- resolve_comp_status_indices(W, compStatus)
+  rest_idx <- setdiff(seq_len(dim(W)[3]), comp_idx)
 
-  W_combined <- apply(W[, , compStatus, drop = FALSE], c(1, 2), mean)
+  M_out <- array(0, c(dim(Y)[2], dim(W)[2], dim(W)[3]),
+                 dimnames = list(colnames(Y), dimnames(W)[[2]], dimnames(W)[[3]]))
 
-  W_combined_array <- array(rep(W_combined, length(compStatus)),
-                            dim = c(nrow(W_combined), ncol(W_combined), length(compStatus)))
-
-  denom_combined <- apply(W_combined_array, c(2, 3), sum)
-
-  for (j in seq_len(ncol(Y))) {
-    shared_mean <- apply(W_combined_array * Y[, j], c(2, 3), sum) / denom_combined
-    M_out[j, , compStatus] <- shared_mean
+  W_combined <- apply(W[, , comp_idx, drop = FALSE], c(1, 2), mean)
+  shared_mean <- weighted_means_from_weights(Y, W_combined)
+  for (status_idx in comp_idx) {
+    M_out[, , status_idx] <- shared_mean
   }
 
-  rest_status <- setdiff(seq_len(V_dim), compStatus)
-  if (length(rest_status) > 0) {
-    W_rest <- apply(W[, , rest_status, drop = FALSE], c(1, 2), mean)
-    W_rest <- array(rep(W_rest, length(rest_status)),
-                    dim = c(nrow(W_rest), ncol(W_rest), length(rest_status)))
-
-    denom_rest <- apply(W_rest, c(2, 3), sum)
-    for (j in seq_len(ncol(Y))) {
-      M_out[j, , rest_status] <- apply(W_rest * Y[, j], c(2, 3), sum) / denom_rest
+  if (length(rest_idx) > 0) {
+    W_rest <- apply(W[, , rest_idx, drop = FALSE], c(1, 2), mean)
+    rest_means <- weighted_means_from_weights(Y, W_rest)
+    for (status_idx in rest_idx) {
+      M_out[, , status_idx] <- rest_means
     }
   }
 
-  return(M_out)
+  M_out
 }
 
 #' Estimate Variance per Gene, Cell Type, and Condition (DE)
@@ -197,18 +180,19 @@ DE_mu_null <- function(Y, W, compStatus) {
 #'
 #' @keywords internal
 DE_sigma2 <- function(Y, W, M){
-  p <- dim(Y)[2]
-  sigma2 <- array(0, dim=dim(M))
+  sigma2 <- array(0, dim = dim(M))
   dimnames(sigma2) <- dimnames(M)
-  W.tot <- apply(W, c(2,3), sum)
-  for(kk in seq_len(p)){
-    for(c.ind in seq_len(dim(M)[2])){
-      for(v.ind in seq_len(dim(M)[3])){
-        sigma2[kk, c.ind, v.ind] <- max(sum(W[, c.ind, v.ind] * (Y[, kk] - M[kk, c.ind, v.ind])^2) / W.tot[c.ind, v.ind], .1)      
-      }
-    }
+
+  Y_sq <- Y * Y
+  for (status_idx in seq_len(dim(W)[3])) {
+    weights <- W[, , status_idx, drop = FALSE][, , 1]
+    weight_sums <- colSums(weights)
+    second_moment <- t(crossprod(weights, Y_sq))
+    second_moment <- sweep(second_moment, 2, weight_sums, "/")
+    sigma2[, , status_idx] <- pmax(second_moment - M[, , status_idx]^2, 0.1)
   }
-  return(sigma2)
+
+  sigma2
 }
 
 #' Estimate Mixing Proportions (DE)

@@ -261,7 +261,7 @@ scDEcrypter performs a cell-type–specific likelihood-ratio test (LRT) to evalu
 To control the false-discovery rate across thousands of genes, scDEcrypter applies the Benjamini–Hochberg (BH) FDR procedure. In addition to significance testing, scDEcrypter computes the estimated log fold-change in expression between infection states within each cell type.
 
 ```{r, eval=TRUE, tidy = TRUE, tidy.opts = list(width.cutoff = 50)}
-testData_de <- differentialResults(mod_results = results_generation, 
+testData_de <- deTest(mod_results = results_generation, 
                                     testData = testData, 
                                    testingGenes = top_genes.HVG_test, 
                                    compGroups = c("Infected", "Bystander"))

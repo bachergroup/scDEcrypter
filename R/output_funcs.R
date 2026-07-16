@@ -40,27 +40,41 @@ getTestWeights <- function(mod_results, testData) {
 #'   expression testing. Should be a larger set of genes for testing.
 #' @param compGroups vector specifying pairwise comparisons to perform. Structure should
 #'   indicate which /viral type pairs to compare (e.g., infected vs. uninfected).
+#' @param method Character scalar specifying the differential-expression test to use.
+#'   Options are \code{"permutation"} (default) and \code{"chisq"}.
+#' @param nPerm Integer number of within-cell-type permutations to use when
+#'   \code{deTest = "permutation"}. Default is \code{1000}.
+#' @param mc.cores Integer number of processes to use for permutation testing.
+#'   Default is \code{1}.
 #'
 #' @return A list containing differential expression results:
 #'   \describe{
 #'     \item{\code{ll.alternative}}{Log-likelihood under alternative (full) model (genes x cell types)}
 #'     \item{\code{ll.null}}{Log-likelihood under null model (genes x cell types)}
 #'     \item{\code{lrt.stat}}{Likelihood ratio test statistics (genes x cell types)}
-#'     \item{\code{pval}}{Chi-squared p-values (genes x cell types)}
+#'     \item{\code{pval}}{Permutation or chi-squared p-values (genes x cell types)}
 #'     \item{\code{adj.pval}}{FDR-adjusted p-values (genes x cell types)}
 #'     \item{\code{logfc}}{Log-fold changes between compared groups}
+#'     \item{\code{method}}{The testing method used to compute p-values}
 #'   }
 #'
 #' @details
 #' The function fits two models to test data: (1) an alternative model allowing
 #' separate means for each comparison group, and (2) a null model with constrained
 #' means. A likelihood ratio test compares these nested models for each gene and
-#' cell type. P-values are computed from a chi-squared distribution with 1 degree
-#' of freedom and adjusted for multiple testing using the false discovery rate.
+#' cell type. By default, p-values are estimated empirically by permuting rows of
+#' the weight array within observed cell types, recomputing the likelihood ratio
+#' statistic, and comparing permuted statistics to the observed statistic. A
+#' chi-squared approximation with 1 degree of freedom is also available and both
+#' p-value types are adjusted for multiple testing using the false discovery rate.
 #' @importFrom stats pchisq p.adjust
 #' @export
-differentialResults <- function(mod_results, testData, 
-                                testingGenes, compGroups) {
+deTest <- function(mod_results, testData, 
+                testingGenes, compGroups,
+                method = c("permutation", "chisq"),
+                nPerm = 1000,
+                mc.cores = 1) {
+  test.method <- match.arg(method)
     
     Y_test <- t(testData[["RNA"]]$data.Test)
     c_obs <- testData$C.preLabel
@@ -74,35 +88,77 @@ differentialResults <- function(mod_results, testData,
     }
     
     Y_test <- Y_test[, testingGenes]
-    
+
     message("Calculating under the alternative ...")
-    # alternative
-    M.alt <- DE_mu(Y = Y_test, W.test, compGroups)
-    sigma2.alt <- DE_sigma2(Y_test, W.test, M.alt)
-    probs.alt <- DE_probs(Y_test, W.test)
-    l1.alt <- approx_complete_data_loglik(Y_test, M.alt, W.test,
-                                      sigma2.alt, c_obs, v_obs)
-                                          
-    message("Calculating under the null ...")
-    # null
-    M.null <- DE_mu_null(Y_test, W.test, compGroups)
-    sigma2.null <- DE_sigma2(Y_test, W.test, M.null)
-    l0.null <- approx_complete_data_loglik(Y_test, M.null, W.test,
-                                      sigma2.null, c_obs, v_obs)
+    observed_fit <- de_lrt_from_weights(Y_test, W.test, compGroups)
+    l1.alt <- observed_fit$ll.alternative
+    l0.null <- observed_fit$ll.null
                                       
     message("Calculating test statistics and p-value ...")
-    lrt <- -2*(l0.null - l1.alt)
-    pval.chisq <- apply(lrt, 2, function(x) pchisq(x, df = 1, lower.tail = F))
-    pval.adjust <- apply(pval.chisq, 2, function(x) p.adjust(x, method = "fdr"))
-    logFC <- compute_logFC(M.alt, compGroups)
+    lrt <- observed_fit$lrt.stat
+
+    if (test.method == "permutation") {
+      group_indices <- Filter(length, split(seq_along(c_obs), c_obs))
+      permuted_lrt <- pbmclapply(
+        X = seq_len(nPerm),
+        FUN = function(iteration) {
+          W_perm <- permute_weights_within_groups(W.test, group_indices)
+          de_lrt_from_weights(Y_test, W_perm, compGroups)$lrt.stat
+        },
+        mc.cores = mc.cores
+      )
+
+      exceed_counts <- matrix(0L,
+                              nrow = nrow(lrt),
+                              ncol = ncol(lrt),
+                              dimnames = dimnames(lrt))
+      for (perm_lrt in permuted_lrt) {
+        exceed_counts <- exceed_counts + (perm_lrt >= lrt)
+      }
+      pval <- (exceed_counts + 1) / (nPerm + 1)
+    } else {
+      pval <- apply(lrt, 2, function(x) pchisq(x, df = 1, lower.tail = FALSE))
+    }
+
+    pval.adjust <- apply(pval, 2, function(x) p.adjust(x, method = "fdr"))
+    logFC <- compute_logFC(observed_fit$M.alt, compGroups)
     return(list(
         ll.alternative = l1.alt,
         ll.null = l0.null,
         lrt.stat = lrt,
-        pval = pval.chisq,
+        pval = pval,
         adj.pval = pval.adjust,
-        logfc = logFC
+        logfc = logFC,
+        test.method = test.method
     ))
+}
+
+de_lrt_from_weights <- function(Y, W, compGroups) {
+    M.alt <- DE_mu(Y = Y, W = W, compStatus = compGroups)
+    sigma2.alt <- DE_sigma2(Y, W, M.alt)
+    ll.alternative <- approx_complete_data_loglik_fast(Y, M.alt, W, sigma2.alt)
+
+    M.null <- DE_mu_null(Y, W, compGroups)
+    sigma2.null <- DE_sigma2(Y, W, M.null)
+    ll.null <- approx_complete_data_loglik_fast(Y, M.null, W, sigma2.null)
+
+    list(
+      M.alt = M.alt,
+      ll.alternative = ll.alternative,
+      ll.null = ll.null,
+      lrt.stat = -2 * (ll.null - ll.alternative)
+    )
+}
+
+permute_weights_within_groups <- function(W, group_indices) {
+    permuted_index <- seq_len(dim(W)[1])
+    for (group_positions in group_indices) {
+      if (length(group_positions) > 1) {
+        permuted_index[group_positions] <- group_positions[sample.int(length(group_positions))]
+      }
+    }
+
+    W[permuted_index, , , drop = FALSE]
 }
 
 
