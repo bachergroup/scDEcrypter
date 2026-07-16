@@ -30,16 +30,16 @@ E_step <- function(Y, c_obs, v_obs, M, probs, sigma2){
                                   log  = T)) + log(probs[cc, vv])
         }
     }
-    if(!is.na(c_obs[kk]) & is.na(v_obs[kk])){
+    if(!is.na(c_obs[kk]) && is.na(v_obs[kk])){
         W[kk,c_obs[kk],] <- exp(log.numerator[c_obs[kk],] - logSumExp(log.numerator[c_obs[kk],],na.rm=T))
     }
-    if(!is.na(v_obs[kk]) & is.na(c_obs[kk])){
+    if(!is.na(v_obs[kk]) && is.na(c_obs[kk])){
         W[kk,,v_obs[kk]] <- exp(log.numerator[,v_obs[kk]] - logSumExp(log.numerator[,v_obs[kk]],na.rm=T))
     }
-    if(!is.na(v_obs[kk]) & !is.na(c_obs[kk])){
+    if(!is.na(v_obs[kk]) && !is.na(c_obs[kk])){
         W[kk,c_obs[kk],v_obs[kk]] <- 1
     }
-    if(is.na(c_obs[kk]) & is.na(v_obs)[kk]){
+    if(is.na(c_obs[kk]) && is.na(v_obs[kk])){
         W[kk,,] <- exp(log.numerator - logSumExp(log.numerator,na.rm=T))
     }
   }
