@@ -179,20 +179,28 @@ DE_mu_null <- function(Y, W, compStatus) {
 #'   weighted variance estimates. Minimum variance floor of 0.1 is applied.
 #'
 #' @keywords internal
-DE_sigma2 <- function(Y, W, M){
+DE_sigma2 <- function(Y, W, M) {
   sigma2 <- array(0, dim = dim(M))
   dimnames(sigma2) <- dimnames(M)
 
   Y_sq <- Y * Y
+
   for (status_idx in seq_len(dim(W)[3])) {
     weights <- W[, , status_idx, drop = FALSE][, , 1]
     weight_sums <- colSums(weights)
+
+    first_moment <- t(crossprod(weights, Y))
+    first_moment <- sweep(first_moment, 2, weight_sums, "/")
+
     second_moment <- t(crossprod(weights, Y_sq))
     second_moment <- sweep(second_moment, 2, weight_sums, "/")
-    sigma2[, , status_idx] <- pmax(second_moment - M[, , status_idx]^2, 0.1)
-  }
 
-  sigma2
+    sigma2[, , status_idx] <- pmax(
+      second_moment - 2 * M[, , status_idx] * first_moment + M[, , status_idx]^2,
+      0.1
+    )
+  }
+  return(sigma2)
 }
 
 #' Estimate Mixing Proportions (DE)

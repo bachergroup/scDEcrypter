@@ -89,15 +89,14 @@ deTest <- function(mod_results, testData,
     
     Y_test <- Y_test[, testingGenes]
 
-    message("Calculating under the alternative ...")
+    message("Calculating observed ...")
     observed_fit <- de_lrt_from_weights(Y_test, W.test, compGroups)
     l1.alt <- observed_fit$ll.alternative
     l0.null <- observed_fit$ll.null
-                                      
-    message("Calculating test statistics and p-value ...")
     lrt <- observed_fit$lrt.stat
 
     if (test.method == "permutation") {
+       message("Calculating permutation test statistics ...")
       group_indices <- Filter(length, split(seq_along(c_obs), c_obs))
       permuted_lrt <- pbmclapply(
         X = seq_len(nPerm),
