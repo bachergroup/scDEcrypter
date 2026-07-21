@@ -5,6 +5,10 @@ approx_complete_data_loglik_rcpp <- function(Y, M, W, sigma2) {
     .Call(`_scDEcrypter_approx_complete_data_loglik_rcpp`, Y, M, W, sigma2)
 }
 
+approx_complete_data_loglik_pair_rcpp <- function(Y, M_alt, sigma2_alt, M_null, sigma2_null, W) {
+    .Call(`_scDEcrypter_approx_complete_data_loglik_pair_rcpp`, Y, M_alt, sigma2_alt, M_null, sigma2_null, W)
+}
+
 de_mu_rcpp <- function(Y, W, comp_idx) {
     .Call(`_scDEcrypter_de_mu_rcpp`, Y, W, comp_idx)
 }

@@ -25,6 +25,22 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// approx_complete_data_loglik_pair_rcpp
+List approx_complete_data_loglik_pair_rcpp(const NumericMatrix& Y, const NumericVector& M_alt, const NumericVector& sigma2_alt, const NumericVector& M_null, const NumericVector& sigma2_null, const NumericVector& W);
+RcppExport SEXP _scDEcrypter_approx_complete_data_loglik_pair_rcpp(SEXP YSEXP, SEXP M_altSEXP, SEXP sigma2_altSEXP, SEXP M_nullSEXP, SEXP sigma2_nullSEXP, SEXP WSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const NumericMatrix& >::type Y(YSEXP);
+    Rcpp::traits::input_parameter< const NumericVector& >::type M_alt(M_altSEXP);
+    Rcpp::traits::input_parameter< const NumericVector& >::type sigma2_alt(sigma2_altSEXP);
+    Rcpp::traits::input_parameter< const NumericVector& >::type M_null(M_nullSEXP);
+    Rcpp::traits::input_parameter< const NumericVector& >::type sigma2_null(sigma2_nullSEXP);
+    Rcpp::traits::input_parameter< const NumericVector& >::type W(WSEXP);
+    rcpp_result_gen = Rcpp::wrap(approx_complete_data_loglik_pair_rcpp(Y, M_alt, sigma2_alt, M_null, sigma2_null, W));
+    return rcpp_result_gen;
+END_RCPP
+}
 // de_mu_rcpp
 NumericVector de_mu_rcpp(const NumericMatrix& Y, const NumericVector& W, const IntegerVector& comp_idx);
 RcppExport SEXP _scDEcrypter_de_mu_rcpp(SEXP YSEXP, SEXP WSEXP, SEXP comp_idxSEXP) {
@@ -67,6 +83,7 @@ END_RCPP
 
 static const R_CallMethodDef CallEntries[] = {
     {"_scDEcrypter_approx_complete_data_loglik_rcpp", (DL_FUNC) &_scDEcrypter_approx_complete_data_loglik_rcpp, 4},
+    {"_scDEcrypter_approx_complete_data_loglik_pair_rcpp", (DL_FUNC) &_scDEcrypter_approx_complete_data_loglik_pair_rcpp, 6},
     {"_scDEcrypter_de_mu_rcpp", (DL_FUNC) &_scDEcrypter_de_mu_rcpp, 3},
     {"_scDEcrypter_de_mu_null_rcpp", (DL_FUNC) &_scDEcrypter_de_mu_null_rcpp, 3},
     {"_scDEcrypter_de_sigma2_rcpp", (DL_FUNC) &_scDEcrypter_de_sigma2_rcpp, 3},

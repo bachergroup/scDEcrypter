@@ -98,11 +98,12 @@ deTest <- function(mod_results, testData,
     if (test.method == "permutation") {
        message("Calculating permutation test statistics ...")
       group_indices <- Filter(length, split(seq_along(c_obs), c_obs))
-      permuted_lrt <- pbmclapply(
+      permute_apply <- if (nPerm > 1000) parallel::mclapply else pbmclapply
+      permuted_lrt <- permute_apply(
         X = seq_len(nPerm),
         FUN = function(iteration) {
           W_perm <- permute_weights_within_groups(W.test, group_indices)
-          de_lrt_from_weights(Y_test, W_perm, compGroups)$lrt.stat
+          de_lrt_exceeds_from_weights(Y_test, W_perm, compGroups, lrt)
         },
         mc.cores = mc.cores
       )
@@ -112,7 +113,7 @@ deTest <- function(mod_results, testData,
                               ncol = ncol(lrt),
                               dimnames = dimnames(lrt))
       for (perm_lrt in permuted_lrt) {
-        exceed_counts <- exceed_counts + (perm_lrt >= lrt)
+        exceed_counts <- exceed_counts + perm_lrt
       }
       pval <- (exceed_counts + 1) / (nPerm + 1)
     } else {

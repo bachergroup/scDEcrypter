@@ -105,22 +105,29 @@ NumericMatrix approx_complete_data_loglik_rcpp(
   if (dimS[0] != n_genes || dimS[1] != c_dim || dimS[2] != v_dim) stop("sigma2 dims mismatch M.");
 
   NumericMatrix out(n_genes, c_dim);
+  const double log_2pi = std::log(2.0 * M_PI);
+  const double* y_ptr = Y.begin();
+  const double* m_ptr = M.begin();
+  const double* w_ptr = W.begin();
+  const double* s_ptr = sigma2.begin();
 
   for (int cc = 0; cc < c_dim; ++cc) {
     for (int kk = 0; kk < n_genes; ++kk) {
       double acc_k = 0.0;
 
       for (int vv = 0; vv < v_dim; ++vv) {
-        const double mu = M[idx3(kk, cc, vv, dimM[0], dimM[1])];
-        const double s2 = sigma2[idx3(kk, cc, vv, dimS[0], dimS[1])];
+        const double mu = m_ptr[idx3(kk, cc, vv, dimM[0], dimM[1])];
+        const double s2 = s_ptr[idx3(kk, cc, vv, dimS[0], dimS[1])];
         if (!(s2 > 0.0) || !R_finite(s2)) continue;
-        const double sd = std::sqrt(s2);
+        const double inv_s2 = 1.0 / s2;
+        const double log_norm_const = -0.5 * (log_2pi + std::log(s2));
 
         double sum_ll = 0.0;
         for (int ii = 0; ii < n_cells; ++ii) {
-          const double x = Y(ii, kk);
-          const double w = W[idx3(ii, cc, vv, dimW[0], dimW[1])];
-          const double ll = R::dnorm4(x, mu, sd, true) * w;
+          const double x = y_ptr[ii + n_cells * kk];
+          const double w = w_ptr[idx3(ii, cc, vv, dimW[0], dimW[1])];
+          const double diff = x - mu;
+          const double ll = (log_norm_const - 0.5 * diff * diff * inv_s2) * w;
           if (R_finite(ll)) sum_ll += ll;   // matches finite-filter logic
         }
         acc_k += sum_ll;
@@ -131,6 +138,102 @@ NumericMatrix approx_complete_data_loglik_rcpp(
   }
 
   return out;
+}
+
+// [[Rcpp::export]]
+List approx_complete_data_loglik_pair_rcpp(
+    const NumericMatrix& Y,
+    const NumericVector& M_alt,
+    const NumericVector& sigma2_alt,
+    const NumericVector& M_null,
+    const NumericVector& sigma2_null,
+    const NumericVector& W) {
+
+  IntegerVector dimM_alt = M_alt.attr("dim");
+  IntegerVector dimS_alt = sigma2_alt.attr("dim");
+  IntegerVector dimM_null = M_null.attr("dim");
+  IntegerVector dimS_null = sigma2_null.attr("dim");
+  IntegerVector dimW = W.attr("dim");
+
+  if (dimM_alt.size() != 3 || dimS_alt.size() != 3 || dimM_null.size() != 3 || dimS_null.size() != 3 || dimW.size() != 3) {
+    stop("All inputs must be 3D arrays except Y.");
+  }
+
+  const int n_cells = Y.nrow();
+  const int n_genes = Y.ncol();
+  const int c_dim = dimM_alt[1];
+  const int v_dim = dimM_alt[2];
+
+  if (dimM_alt[0] != n_genes || dimS_alt[0] != n_genes || dimM_null[0] != n_genes || dimS_null[0] != n_genes) {
+    stop("Gene dimensions of M/sigma2 must match ncol(Y).");
+  }
+  if (dimM_alt[1] != c_dim || dimM_alt[2] != v_dim || dimS_alt[1] != c_dim || dimS_alt[2] != v_dim ||
+      dimM_null[1] != c_dim || dimM_null[2] != v_dim || dimS_null[1] != c_dim || dimS_null[2] != v_dim) {
+    stop("Dimensions of M and sigma2 must match between alternative and null models.");
+  }
+  if (dimW[0] != n_cells || dimW[1] != c_dim || dimW[2] != v_dim) {
+    stop("W dims must match Y and model dimensions.");
+  }
+
+  NumericMatrix ll_alt(n_genes, c_dim);
+  NumericMatrix ll_null(n_genes, c_dim);
+  const double log_2pi = std::log(2.0 * M_PI);
+  const double* y_ptr = Y.begin();
+  const double* m_alt_ptr = M_alt.begin();
+  const double* s_alt_ptr = sigma2_alt.begin();
+  const double* m_null_ptr = M_null.begin();
+  const double* s_null_ptr = sigma2_null.begin();
+  const double* w_ptr = W.begin();
+
+  for (int cc = 0; cc < c_dim; ++cc) {
+    for (int kk = 0; kk < n_genes; ++kk) {
+      double acc_alt = 0.0;
+      double acc_null = 0.0;
+
+      for (int vv = 0; vv < v_dim; ++vv) {
+        const double mu_alt = m_alt_ptr[idx3(kk, cc, vv, dimM_alt[0], dimM_alt[1])];
+        const double s2_alt = s_alt_ptr[idx3(kk, cc, vv, dimS_alt[0], dimS_alt[1])];
+        const double mu_null = m_null_ptr[idx3(kk, cc, vv, dimM_null[0], dimM_null[1])];
+        const double s2_null = s_null_ptr[idx3(kk, cc, vv, dimS_null[0], dimS_null[1])];
+
+        if (s2_alt > 0.0 && R_finite(s2_alt)) {
+          const double inv_s2_alt = 1.0 / s2_alt;
+          const double log_norm_const_alt = -0.5 * (log_2pi + std::log(s2_alt));
+          double sum_alt = 0.0;
+          for (int ii = 0; ii < n_cells; ++ii) {
+            const double x = y_ptr[ii + n_cells * kk];
+            const double w = w_ptr[idx3(ii, cc, vv, dimW[0], dimW[1])];
+            const double diff = x - mu_alt;
+            const double ll = (log_norm_const_alt - 0.5 * diff * diff * inv_s2_alt) * w;
+            if (R_finite(ll)) sum_alt += ll;
+          }
+          acc_alt += sum_alt;
+        }
+
+        if (s2_null > 0.0 && R_finite(s2_null)) {
+          const double inv_s2_null = 1.0 / s2_null;
+          const double log_norm_const_null = -0.5 * (log_2pi + std::log(s2_null));
+          double sum_null = 0.0;
+          for (int ii = 0; ii < n_cells; ++ii) {
+            const double x = y_ptr[ii + n_cells * kk];
+            const double w = w_ptr[idx3(ii, cc, vv, dimW[0], dimW[1])];
+            const double diff = x - mu_null;
+            const double ll = (log_norm_const_null - 0.5 * diff * diff * inv_s2_null) * w;
+            if (R_finite(ll)) sum_null += ll;
+          }
+          acc_null += sum_null;
+        }
+      }
+
+      ll_alt(kk, cc) = acc_alt;
+      ll_null(kk, cc) = acc_null;
+    }
+  }
+
+  return List::create(
+    Named("ll.alternative") = ll_alt,
+    Named("ll.null") = ll_null
+  );
 }
 
 // [[Rcpp::export]]

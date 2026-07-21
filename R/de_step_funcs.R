@@ -33,6 +33,12 @@ approx_complete_data_loglik_fast <- function(Y, M, W, sigma2) {
   return(resout)
 }
 
+approx_complete_data_loglik_pair_fast <- function(Y, M.alt, sigma2.alt, M.null, sigma2.null, W) {
+  Y <- as.matrix(Y)
+  storage.mode(Y) <- "double"
+  approx_complete_data_loglik_pair_rcpp(Y, M.alt, sigma2.alt, M.null, sigma2.null, W)
+}
+
 #' Estimate Mean Expression per Gene, Cell Type, and Condition (DE)
 #'
 #' Computes weighted mean expression matrices for the alternative hypothesis
@@ -222,6 +228,19 @@ DE_probs <- function(Y, W){
   out.probs <- apply(W, c(2,3), sum)/dim(Y)[1]
   dimnames(out.probs) <- dimnames(W)[2:3]
   return(out.probs)
+}
+
+de_lrt_exceeds_from_weights <- function(Y, W, compGroups, lrt) {
+    M.alt <- DE_mu(Y = Y, W = W, compStatus = compGroups)
+    sigma2.alt <- DE_sigma2(Y, W, M.alt)
+
+    M.null <- DE_mu_null(Y, W, compGroups)
+    sigma2.null <- DE_sigma2(Y, W, M.null)
+
+    ll_pair <- approx_complete_data_loglik_pair_fast(Y, M.alt, sigma2.alt, M.null, sigma2.null, W)
+    perm_lrt <- -2 * (ll_pair[["ll.null"]] - ll_pair[["ll.alternative"]])
+
+    (perm_lrt >= lrt) * 1L
 }
 
 
