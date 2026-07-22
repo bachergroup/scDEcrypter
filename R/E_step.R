@@ -11,13 +11,24 @@
 #' @importFrom matrixStats logSumExp
 #' @keywords internal
 E_step <- function(Y, c_obs, v_obs, M, probs, sigma2){
+    Y <- as.matrix(Y)
+    if (length(dim(Y)) != 2) {
+        stop("Y must be a 2D matrix with cells in rows and genes in columns.", call. = FALSE)
+    }
+
   c_dim <- dim(M)[2]
   v_dim <- dim(M)[3]
   n_num_cells <- dim(Y)[1]
   p_num_genes <- dim(Y)[2]
-  W <- array(0, dim=c(n_num_cells, c_dim, v_dim),
-                dimnames = list(rownames(Y), NULL, NULL))
-  dimnames(W)[2:3] <- dimnames(M)[2:3]
+    W <- array(0, dim = c(n_num_cells, c_dim, v_dim))
+
+    y_rownames <- rownames(Y)
+    if (!is.null(y_rownames) && length(y_rownames) == n_num_cells) {
+        dimnames(W)[[1]] <- y_rownames
+    }
+    if (!is.null(dimnames(M)) && length(dimnames(M)) >= 3) {
+        dimnames(W)[2:3] <- dimnames(M)[2:3]
+    }
   genes <- dimnames(M)[[1]]
   
   for (kk in 1:n_num_cells) {
