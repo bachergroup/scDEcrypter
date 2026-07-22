@@ -9,7 +9,7 @@ deTest(
   testData,
   testingGenes,
   compGroups,
-  method = c("permutation", "chisq"),
+  method = c("permutation", "perm", "chisq"),
   nPerm = 1000,
   mc.cores = 1
 )
@@ -31,7 +31,8 @@ expression testing. Should be a larger set of genes for testing.}
 indicate which /viral type pairs to compare (e.g., infected vs. uninfected).}
 
 \item{method}{Character scalar specifying the differential-expression test to use.
-Options are \code{"permutation"} (default) and \code{"chisq"}.}
+Options are \code{"permutation"} (default), \code{"perm"} (alias for
+permutation), and \code{"chisq"}.}
 
 \item{nPerm}{Integer number of within-cell-type permutations to use when
 \code{deTest = "permutation"}. Default is \code{1000}.}

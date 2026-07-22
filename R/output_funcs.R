@@ -8,9 +8,10 @@
 #' @return The W weight matrix (cells x cell types x viral types).
 #' @export
 getTestWeights <- function(mod_results, testData) {
-    Y_test <- t(testData[["RNA"]]$data.Test)
-    c_obs <- testData$C.preLabel
-    v_obs <- testData$V.preLabel
+  test_components <- extract_test_components(testData)
+  Y_test <- test_components$Y_test
+  c_obs <- test_components$c_obs
+  v_obs <- test_components$v_obs
     M <- mod_results$M_generation
     sigma2 <- mod_results$sigma2_generation
     probs <- mod_results$probs_generation
@@ -41,7 +42,8 @@ getTestWeights <- function(mod_results, testData) {
 #' @param compGroups vector specifying pairwise comparisons to perform. Structure should
 #'   indicate which /viral type pairs to compare (e.g., infected vs. uninfected).
 #' @param method Character scalar specifying the differential-expression test to use.
-#'   Options are \code{"permutation"} (default) and \code{"chisq"}.
+#'   Options are \code{"permutation"} (default), \code{"perm"} (alias for
+#'   permutation), and \code{"chisq"}.
 #' @param nPerm Integer number of within-cell-type permutations to use when
 #'   \code{deTest = "permutation"}. Default is \code{1000}.
 #' @param mc.cores Integer number of processes to use for permutation testing.
@@ -71,14 +73,18 @@ getTestWeights <- function(mod_results, testData) {
 #' @export
 deTest <- function(mod_results, testData, 
                 testingGenes, compGroups,
-                method = c("permutation", "chisq"),
+                method = c("permutation", "perm", "chisq"),
                 nPerm = 1000,
                 mc.cores = 1) {
   test.method <- match.arg(method)
+  if (identical(test.method, "perm")) {
+    test.method <- "permutation"
+  }
     
-    Y_test <- t(testData[["RNA"]]$data.Test)
-    c_obs <- testData$C.preLabel
-    v_obs <- testData$V.preLabel
+    test_components <- extract_test_components(testData)
+    Y_test <- test_components$Y_test
+    c_obs <- test_components$c_obs
+    v_obs <- test_components$v_obs
     
     if (is.null(mod_results$weights_test)) {
       message("Calculating weights on test set...")
@@ -285,4 +291,52 @@ select_by_threshold <- function(x, cutoff, f.labels) {
     z <- f.labels[z]
     if (length(z) != 1) z <- "NotAssigned"
     return(z)
+}
+
+
+extract_test_components <- function(testData) {
+    Y_test <- tryCatch(t(testData[["RNA"]]$data.Test), error = function(e) NULL)
+    if (is.null(Y_test) && inherits(testData, "Seurat")) {
+      Y_test <- tryCatch(
+        t(SeuratObject::LayerData(testData, assay = "RNA", layer = "data.Test")),
+        error = function(e) NULL
+      )
+    }
+    if (is.null(Y_test)) {
+      stop(
+        "Unable to read test expression matrix. Expected RNA layer/slot 'data.Test'.",
+        call. = FALSE
+      )
+    }
+
+    c_obs <- tryCatch(testData$C.preLabel, error = function(e) NULL)
+    v_obs <- tryCatch(testData$V.preLabel, error = function(e) NULL)
+
+    if ((is.null(c_obs) || is.null(v_obs)) && inherits(testData, "Seurat")) {
+      meta <- tryCatch(testData@meta.data, error = function(e) NULL)
+      if (!is.null(meta)) {
+        if (is.null(c_obs) && "C.preLabel" %in% colnames(meta)) {
+          c_obs <- meta$C.preLabel
+        }
+        if (is.null(v_obs) && "V.preLabel" %in% colnames(meta)) {
+          v_obs <- meta$V.preLabel
+        }
+      }
+    }
+
+    if (is.null(c_obs) || is.null(v_obs)) {
+      stop(
+        "Missing C.preLabel and/or V.preLabel in testData metadata.",
+        call. = FALSE
+      )
+    }
+
+    if (length(c_obs) != nrow(Y_test) || length(v_obs) != nrow(Y_test)) {
+      stop(
+        "Length mismatch: labels C.preLabel/V.preLabel must match number of test cells.",
+        call. = FALSE
+      )
+    }
+
+    list(Y_test = Y_test, c_obs = c_obs, v_obs = v_obs)
 }
