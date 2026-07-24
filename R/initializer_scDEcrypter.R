@@ -100,7 +100,12 @@ initializer_scDEcrypter <- function(Y, c_obs, v_obs, max.iter, tol, c_star, v_st
     probs.new <- M_step_probs(Y, W1)
     M.new <- update_mu_nopenalty(Y, M, sigma2, W1)
     sigma2.new <- M_step_variance(Y, W1, M.new)
-    if(sum((M - M.new)^2)/sum(M^2) < tol){
+    rel_change <- sum((M - M.new)^2)/sum(M^2)
+    if (mm == 1L || mm %% 10L == 0L) {
+      message(sprintf("  [init] iteration %d/%d (rel_change=%.3e)", mm, max.iter, rel_change))
+    }
+    if(rel_change < tol){
+      message(sprintf("  [init] converged at iteration %d (rel_change=%.3e)", mm, rel_change))
       break
     }
     M <- M.new

@@ -5,6 +5,14 @@ approx_complete_data_loglik_rcpp <- function(Y, M, W, sigma2) {
     .Call(`_scDEcrypter_approx_complete_data_loglik_rcpp`, Y, M, W, sigma2)
 }
 
+E_step_rcpp <- function(Y, c_obs, v_obs, M, probs, sigma2) {
+    .Call(`_scDEcrypter_E_step_rcpp`, Y, c_obs, v_obs, M, probs, sigma2)
+}
+
+observed_data_loglik_rcpp <- function(Y, M, sigma2, probs, c_obs, v_obs) {
+    .Call(`_scDEcrypter_observed_data_loglik_rcpp`, Y, M, sigma2, probs, c_obs, v_obs)
+}
+
 approx_complete_data_loglik_pair_rcpp <- function(Y, M_alt, sigma2_alt, M_null, sigma2_null, W) {
     .Call(`_scDEcrypter_approx_complete_data_loglik_pair_rcpp`, Y, M_alt, sigma2_alt, M_null, sigma2_null, W)
 }
@@ -19,13 +27,5 @@ de_mu_null_rcpp <- function(Y, W, comp_idx) {
 
 de_sigma2_rcpp <- function(Y, W, M) {
     .Call(`_scDEcrypter_de_sigma2_rcpp`, Y, W, M)
-}
-
-E_step_rcpp <- function(Y, c_obs, v_obs, M, probs, sigma2) {
-    .Call(`_scDEcrypter_E_step_rcpp`, Y, c_obs, v_obs, M, probs, sigma2)
-}
-
-observed_data_loglik_rcpp <- function(Y, M, sigma2, probs, c_obs, v_obs) {
-    .Call(`_scDEcrypter_observed_data_loglik_rcpp`, Y, M, sigma2, probs, c_obs, v_obs)
 }
 

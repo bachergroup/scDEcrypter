@@ -59,24 +59,34 @@ fit_scDEcrypter <- function(Data, c_obs=NULL, v_obs=NULL, infectionLabels=NULL, 
   probs_lambda_list <- list()
   weights_lambda_list <- list()
   message("Initializing...")
+  init_t0 <- proc.time()[3]
   tmp <- initializer_scDEcrypter(Y, c_obs, v_obs, max.iter, tol, c_star, v_star)
+  message(sprintf("Initialization done (%.1fs)", proc.time()[3] - init_t0))
   
   
-  for(lambda in lambda.vec) {
+  n_lambda <- length(lambda.vec)
+  for(lambda_idx in seq_along(lambda.vec)) {
+    lambda <- lambda.vec[[lambda_idx]]
+    lambda_t0 <- proc.time()[3]
+    message(sprintf("[lambda %d/%d] Running lambda=%s", lambda_idx, n_lambda, format(lambda, scientific = TRUE)))
     
     M <- tmp$M
     sigma2 <- tmp$sigma2
     probs <- tmp$probs
     
-    message("EM Iterating...")
+    message("EM in progress...")
     for(mm in seq_len(max.iter)){
       W1 <- E_step(Y, c_obs, v_obs, M, probs, sigma2)
       probs.new <- M_step_probs(Y, W1)
       M.new <- update_mu(Y, M, sigma2, W1, lambda = lambda * nrow(Y))
       sigma2.new <- M_step_variance(Y, W1, M.new)
       
-      cat(sum((M - M.new)^2)/sum(M^2), "\n")
-      if(sum((M - M.new)^2)/sum(M^2) < tol){
+      rel_change <- sum((M - M.new)^2)/sum(M^2)
+      if (mm == 1L || mm %% 10L == 0L) {
+        message(sprintf("  iteration %d/%d (rel_change=%.3e)", mm, max.iter, rel_change))
+      }
+      if(rel_change < tol){
+        message(sprintf("  converged at iteration %d (rel_change=%.3e)", mm, rel_change))
         break
       }
       M <- M.new
@@ -100,6 +110,7 @@ fit_scDEcrypter <- function(Data, c_obs=NULL, v_obs=NULL, infectionLabels=NULL, 
     sigma2_lambda_list[[as.character(lambda)]] <- sigma2.new
     probs_lambda_list[[as.character(lambda)]] <- probs.new
     weights_lambda_list[[as.character(lambda)]] <- out.weights
+    message(sprintf("[lambda %d/%d] Complete (%.1fs)", lambda_idx, n_lambda, proc.time()[3] - lambda_t0))
   }
   
   if (length(lambda.vec) == 1) {
