@@ -141,12 +141,18 @@ deTest <- function(mod_results, testData,
 }
 
 de_lrt_from_weights <- function(Y, W, compGroups) {
-    M.alt <- DE_mu(Y = Y, W = W, compStatus = compGroups)
-    sigma2.alt <- DE_sigma2(Y, W, M.alt)
+  comp_idx <- resolve_comp_status_indices(W, compGroups)
+
+  M.alt <- de_mu_rcpp(Y, W, comp_idx)
+  dimnames(M.alt) <- list(colnames(Y), dimnames(W)[[2]], dimnames(W)[[3]])
+  sigma2.alt <- de_sigma2_rcpp(Y, W, M.alt)
+  dimnames(sigma2.alt) <- dimnames(M.alt)
     ll.alternative <- approx_complete_data_loglik_fast(Y, M.alt, W, sigma2.alt)
 
-    M.null <- DE_mu_null(Y, W, compGroups)
-    sigma2.null <- DE_sigma2(Y, W, M.null)
+  M.null <- de_mu_null_rcpp(Y, W, comp_idx)
+  dimnames(M.null) <- list(colnames(Y), dimnames(W)[[2]], dimnames(W)[[3]])
+  sigma2.null <- de_sigma2_rcpp(Y, W, M.null)
+  dimnames(sigma2.null) <- dimnames(M.null)
     ll.null <- approx_complete_data_loglik_fast(Y, M.null, W, sigma2.null)
 
     list(

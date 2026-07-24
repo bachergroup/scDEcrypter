@@ -79,6 +79,54 @@ inline std::vector<int> complement_status_idx(int v_dim, const IntegerVector& co
   return rest_idx;
 }
 
+inline double log_sum_exp(const std::vector<double>& values) {
+  double max_value = R_NegInf;
+  for (double value : values) {
+    if (R_finite(value) && value > max_value) {
+      max_value = value;
+    }
+  }
+
+  if (!R_finite(max_value)) {
+    return R_NegInf;
+  }
+
+  double total = 0.0;
+  for (double value : values) {
+    if (R_finite(value)) {
+      total += std::exp(value - max_value);
+    }
+  }
+
+  return max_value + std::log(total);
+}
+
+inline double normal_log_density_sum_cell(const NumericMatrix& Y,
+                                          int cell_idx,
+                                          int cc,
+                                          int vv,
+                                          const NumericVector& M,
+                                          const NumericVector& sigma2,
+                                          const IntegerVector& dimM,
+                                          const IntegerVector& dimS) {
+  const int n_genes = Y.ncol();
+  const double log_2pi = std::log(2.0 * M_PI);
+  double ll = 0.0;
+
+  for (int gg = 0; gg < n_genes; ++gg) {
+    const double x = Y(cell_idx, gg);
+    const double mu = M[idx3(gg, cc, vv, dimM[0], dimM[1])];
+    const double s2 = sigma2[idx3(gg, cc, vv, dimS[0], dimS[1])];
+    if (!(s2 > 0.0) || !R_finite(s2)) {
+      return R_NegInf;
+    }
+    const double diff = x - mu;
+    ll += -0.5 * (log_2pi + std::log(s2) + (diff * diff) / s2);
+  }
+
+  return ll;
+}
+
 // [[Rcpp::export]]
 NumericMatrix approx_complete_data_loglik_rcpp(
     const NumericMatrix& Y,        // n_cells x n_genes
@@ -138,6 +186,206 @@ NumericMatrix approx_complete_data_loglik_rcpp(
   }
 
   return out;
+}
+
+// [[Rcpp::export]]
+NumericVector E_step_rcpp(const NumericMatrix& Y,
+                          const IntegerVector& c_obs,
+                          const IntegerVector& v_obs,
+                          const NumericVector& M,
+                          const NumericMatrix& probs,
+                          const NumericVector& sigma2) {
+
+  IntegerVector dimM = M.attr("dim");
+  IntegerVector dimS = sigma2.attr("dim");
+
+  if (dimM.size() != 3 || dimS.size() != 3) {
+    stop("M and sigma2 must be 3D arrays.");
+  }
+
+  const int n_cells = Y.nrow();
+  const int n_genes = Y.ncol();
+  const int c_dim = dimM[1];
+  const int v_dim = dimM[2];
+
+  if (dimM[0] != n_genes) stop("dim(M)[1] must equal ncol(Y).");
+  if (dimS[0] != n_genes || dimS[1] != c_dim || dimS[2] != v_dim) stop("sigma2 dims mismatch M.");
+  if (probs.nrow() != c_dim || probs.ncol() != v_dim) stop("probs dims mismatch M.");
+  if (c_obs.size() != n_cells || v_obs.size() != n_cells) stop("Label lengths must match nrow(Y).");
+
+  NumericVector out = init_array3(n_cells, c_dim, v_dim);
+  const double* y_ptr = Y.begin();
+  const double* m_ptr = M.begin();
+  const double* s_ptr = sigma2.begin();
+  const double* p_ptr = probs.begin();
+  const double log_2pi = std::log(2.0 * M_PI);
+
+  std::vector<double> log_numerator(c_dim * v_dim);
+
+  for (int ii = 0; ii < n_cells; ++ii) {
+    for (int cc = 0; cc < c_dim; ++cc) {
+      for (int vv = 0; vv < v_dim; ++vv) {
+        double ll = 0.0;
+        for (int gg = 0; gg < n_genes; ++gg) {
+          const double x = y_ptr[ii + n_cells * gg];
+          const double mu = m_ptr[idx3(gg, cc, vv, dimM[0], dimM[1])];
+          const double s2 = s_ptr[idx3(gg, cc, vv, dimS[0], dimS[1])];
+          const double diff = x - mu;
+          ll += -0.5 * (log_2pi + std::log(s2) + (diff * diff) / s2);
+        }
+
+        const double prob = p_ptr[cc + c_dim * vv];
+        if (R_finite(prob) && prob > 0.0) {
+          ll += std::log(prob);
+        } else {
+          ll = R_NegInf;
+        }
+        log_numerator[cc + c_dim * vv] = ll;
+      }
+    }
+
+    const bool c_known = c_obs[ii] != NA_INTEGER;
+    const bool v_known = v_obs[ii] != NA_INTEGER;
+
+    if (c_known && v_known) {
+      out[idx3(ii, c_obs[ii] - 1, v_obs[ii] - 1, n_cells, c_dim)] = 1.0;
+      continue;
+    }
+
+    if (c_known && !v_known) {
+      const int cc = c_obs[ii] - 1;
+      std::vector<double> values(v_dim);
+      for (int vv = 0; vv < v_dim; ++vv) {
+        values[vv] = log_numerator[cc + c_dim * vv];
+      }
+      const double lse = log_sum_exp(values);
+      if (!R_finite(lse)) {
+        continue;
+      }
+      for (int vv = 0; vv < v_dim; ++vv) {
+        out[idx3(ii, cc, vv, n_cells, c_dim)] = std::exp(values[vv] - lse);
+      }
+      continue;
+    }
+
+    if (!c_known && v_known) {
+      const int vv = v_obs[ii] - 1;
+      std::vector<double> values(c_dim);
+      for (int cc = 0; cc < c_dim; ++cc) {
+        values[cc] = log_numerator[cc + c_dim * vv];
+      }
+      const double lse = log_sum_exp(values);
+      if (!R_finite(lse)) {
+        continue;
+      }
+      for (int cc = 0; cc < c_dim; ++cc) {
+        out[idx3(ii, cc, vv, n_cells, c_dim)] = std::exp(values[cc] - lse);
+      }
+      continue;
+    }
+
+    const double lse = log_sum_exp(log_numerator);
+    if (!R_finite(lse)) {
+      continue;
+    }
+    for (int cc = 0; cc < c_dim; ++cc) {
+      for (int vv = 0; vv < v_dim; ++vv) {
+        out[idx3(ii, cc, vv, n_cells, c_dim)] = std::exp(log_numerator[cc + c_dim * vv] - lse);
+      }
+    }
+  }
+
+  return out;
+}
+
+// [[Rcpp::export]]
+double observed_data_loglik_rcpp(const NumericMatrix& Y,
+                                 const NumericVector& M,
+                                 const NumericVector& sigma2,
+                                 const NumericMatrix& probs,
+                                 const IntegerVector& c_obs,
+                                 const IntegerVector& v_obs) {
+
+  IntegerVector dimM = M.attr("dim");
+  IntegerVector dimS = sigma2.attr("dim");
+
+  if (dimM.size() != 3 || dimS.size() != 3) {
+    stop("M and sigma2 must be 3D arrays.");
+  }
+
+  const int n_cells = Y.nrow();
+  const int c_dim = dimM[1];
+  const int v_dim = dimM[2];
+
+  if (dimM[0] != Y.ncol()) stop("dim(M)[1] must equal ncol(Y).");
+  if (dimS[0] != Y.ncol() || dimS[1] != c_dim || dimS[2] != v_dim) stop("sigma2 dims mismatch M.");
+  if (probs.nrow() != c_dim || probs.ncol() != v_dim) stop("probs dims mismatch M.");
+  if (c_obs.size() != n_cells || v_obs.size() != n_cells) stop("Label lengths must match nrow(Y).");
+
+  std::vector<double> row_sums(c_dim, 0.0);
+  std::vector<double> col_sums(v_dim, 0.0);
+  for (int cc = 0; cc < c_dim; ++cc) {
+    for (int vv = 0; vv < v_dim; ++vv) {
+      const double value = probs(cc, vv);
+      row_sums[cc] += value;
+      col_sums[vv] += value;
+    }
+  }
+
+  double total = 0.0;
+  std::vector<double> combo_values;
+  combo_values.reserve(c_dim * v_dim);
+
+  for (int ii = 0; ii < n_cells; ++ii) {
+    const bool c_known = c_obs[ii] != NA_INTEGER;
+    const bool v_known = v_obs[ii] != NA_INTEGER;
+
+    if (c_known && v_known) {
+      const int cc = c_obs[ii] - 1;
+      const int vv = v_obs[ii] - 1;
+      double p0 = probs(cc, vv);
+      if (!R_finite(p0) || p0 == 0.0) p0 = 0.001;
+      total += normal_log_density_sum_cell(Y, ii, cc, vv, M, sigma2, dimM, dimS) + std::log(p0);
+      continue;
+    }
+
+    if (c_known && !v_known) {
+      const int cc = c_obs[ii] - 1;
+      combo_values.assign(v_dim, R_NegInf);
+      for (int vv = 0; vv < v_dim; ++vv) {
+        double p1 = probs(cc, vv) / row_sums[cc];
+        if (!R_finite(p1) || p1 == 0.0) p1 = 0.001;
+        combo_values[vv] = normal_log_density_sum_cell(Y, ii, cc, vv, M, sigma2, dimM, dimS) + std::log(p1);
+      }
+      total += log_sum_exp(combo_values);
+      continue;
+    }
+
+    if (!c_known && v_known) {
+      const int vv = v_obs[ii] - 1;
+      combo_values.assign(c_dim, R_NegInf);
+      for (int cc = 0; cc < c_dim; ++cc) {
+        double p2 = probs(cc, vv) / col_sums[vv];
+        if (!R_finite(p2) || p2 == 0.0) p2 = 0.001;
+        combo_values[cc] = normal_log_density_sum_cell(Y, ii, cc, vv, M, sigma2, dimM, dimS) + std::log(p2);
+      }
+      total += log_sum_exp(combo_values);
+      continue;
+    }
+
+    combo_values.clear();
+    combo_values.reserve(c_dim * v_dim);
+    for (int cc = 0; cc < c_dim; ++cc) {
+      for (int vv = 0; vv < v_dim; ++vv) {
+        double p3 = probs(cc, vv);
+        if (!R_finite(p3) || p3 == 0.0) p3 = 0.001;
+        combo_values.push_back(normal_log_density_sum_cell(Y, ii, cc, vv, M, sigma2, dimM, dimS) + std::log(p3));
+      }
+    }
+    total += log_sum_exp(combo_values);
+  }
+
+  return total;
 }
 
 // [[Rcpp::export]]

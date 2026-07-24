@@ -21,3 +21,11 @@ de_sigma2_rcpp <- function(Y, W, M) {
     .Call(`_scDEcrypter_de_sigma2_rcpp`, Y, W, M)
 }
 
+E_step_rcpp <- function(Y, c_obs, v_obs, M, probs, sigma2) {
+    .Call(`_scDEcrypter_E_step_rcpp`, Y, c_obs, v_obs, M, probs, sigma2)
+}
+
+observed_data_loglik_rcpp <- function(Y, M, sigma2, probs, c_obs, v_obs) {
+    .Call(`_scDEcrypter_observed_data_loglik_rcpp`, Y, M, sigma2, probs, c_obs, v_obs)
+}
+

@@ -81,9 +81,45 @@ BEGIN_RCPP
 END_RCPP
 }
 
+// E_step_rcpp
+NumericVector E_step_rcpp(const NumericMatrix& Y, const IntegerVector& c_obs, const IntegerVector& v_obs, const NumericVector& M, const NumericMatrix& probs, const NumericVector& sigma2);
+RcppExport SEXP _scDEcrypter_E_step_rcpp(SEXP YSEXP, SEXP c_obsSEXP, SEXP v_obsSEXP, SEXP MSEXP, SEXP probsSEXP, SEXP sigma2SEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const NumericMatrix& >::type Y(YSEXP);
+    Rcpp::traits::input_parameter< const IntegerVector& >::type c_obs(c_obsSEXP);
+    Rcpp::traits::input_parameter< const IntegerVector& >::type v_obs(v_obsSEXP);
+    Rcpp::traits::input_parameter< const NumericVector& >::type M(MSEXP);
+    Rcpp::traits::input_parameter< const NumericMatrix& >::type probs(probsSEXP);
+    Rcpp::traits::input_parameter< const NumericVector& >::type sigma2(sigma2SEXP);
+    rcpp_result_gen = Rcpp::wrap(E_step_rcpp(Y, c_obs, v_obs, M, probs, sigma2));
+    return rcpp_result_gen;
+END_RCPP
+}
+
+// observed_data_loglik_rcpp
+double observed_data_loglik_rcpp(const NumericMatrix& Y, const NumericVector& M, const NumericVector& sigma2, const NumericMatrix& probs, const IntegerVector& c_obs, const IntegerVector& v_obs);
+RcppExport SEXP _scDEcrypter_observed_data_loglik_rcpp(SEXP YSEXP, SEXP MSEXP, SEXP sigma2SEXP, SEXP probsSEXP, SEXP c_obsSEXP, SEXP v_obsSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const NumericMatrix& >::type Y(YSEXP);
+    Rcpp::traits::input_parameter< const NumericVector& >::type M(MSEXP);
+    Rcpp::traits::input_parameter< const NumericVector& >::type sigma2(sigma2SEXP);
+    Rcpp::traits::input_parameter< const NumericMatrix& >::type probs(probsSEXP);
+    Rcpp::traits::input_parameter< const IntegerVector& >::type c_obs(c_obsSEXP);
+    Rcpp::traits::input_parameter< const IntegerVector& >::type v_obs(v_obsSEXP);
+    rcpp_result_gen = Rcpp::wrap(observed_data_loglik_rcpp(Y, M, sigma2, probs, c_obs, v_obs));
+    return rcpp_result_gen;
+END_RCPP
+}
+
 static const R_CallMethodDef CallEntries[] = {
     {"_scDEcrypter_approx_complete_data_loglik_rcpp", (DL_FUNC) &_scDEcrypter_approx_complete_data_loglik_rcpp, 4},
     {"_scDEcrypter_approx_complete_data_loglik_pair_rcpp", (DL_FUNC) &_scDEcrypter_approx_complete_data_loglik_pair_rcpp, 6},
+    {"_scDEcrypter_E_step_rcpp", (DL_FUNC) &_scDEcrypter_E_step_rcpp, 6},
+    {"_scDEcrypter_observed_data_loglik_rcpp", (DL_FUNC) &_scDEcrypter_observed_data_loglik_rcpp, 6},
     {"_scDEcrypter_de_mu_rcpp", (DL_FUNC) &_scDEcrypter_de_mu_rcpp, 3},
     {"_scDEcrypter_de_mu_null_rcpp", (DL_FUNC) &_scDEcrypter_de_mu_null_rcpp, 3},
     {"_scDEcrypter_de_sigma2_rcpp", (DL_FUNC) &_scDEcrypter_de_sigma2_rcpp, 3},

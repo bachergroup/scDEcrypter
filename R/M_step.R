@@ -121,19 +121,9 @@ update_mu_nopenalty <- function(Y, M, sigma2, W){
 #'
 #' @keywords internal
 M_step_variance <- function(Y, W, M){
-	p <- dim(Y)[2]
-	sigma2 <- array(0, dim=dim(M))
-	dimnames(sigma2) <- dimnames(M)
-	W.tot <- apply(W, c(2,3), sum)
-	W.tot[W.tot ==0] <- .1
-	for(kk in seq_len(p)){
-	  for(c.ind in 1:dim(M)[2]){
-	    for(v.ind in 1:dim(M)[3]){
-	      sigma2[kk, c.ind, v.ind] <- max(sum(W[, c.ind, v.ind] * (Y[, kk] - M[kk, c.ind, v.ind])^2) / W.tot[c.ind, v.ind], .1)
-	    }
-	  }
-	}
-	return(sigma2)
+  sigma2 <- de_sigma2_rcpp(Y, W, M)
+  dimnames(sigma2) <- dimnames(M)
+  sigma2
 	}
 
 #' Estimate Mixing Proportions (M-step)

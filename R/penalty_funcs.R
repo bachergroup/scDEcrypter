@@ -19,7 +19,7 @@ proxOp1 <- function(input, lambda, D, Us) {
   if (t0 <= lambda^2) {
     result <- mean(input)*rep(1, s)
   } else {
-    result <- input - crossprod(D, input)/(sqrt(sum(v^2))/lambda)
+    result <- input - t1/(sqrt(sum(v^2))/lambda)
   }
   return(result)
 }
@@ -56,13 +56,27 @@ obj.func <- function(M, a, S, D, lambda) {
 #'
 #' @return Numeric vector of updated parameter estimates.
 #' @export
+accpgd_basis_cache <- new.env(parent = emptyenv())
+
+get_accpgd_basis <- function(m.len) {
+  key <- as.character(m.len)
+  basis <- accpgd_basis_cache[[key]]
+  if (is.null(basis)) {
+    D <- diag(rep(1, m.len)) - matrix(1, m.len, m.len)/m.len
+    basis <- list(D = D, Us = svd(D)$u)
+    accpgd_basis_cache[[key]] <- basis
+  }
+  basis
+}
+
 AccPGD.Dm <- function(a, S, lambda, M.init = NULL, max.iter = 10, tol = 1e-10)  {
   # ---------------------------------
   # preliminaries
   # --------------------------------
   m.len <- length(a)
-  D <- diag(rep(1, m.len)) - matrix(1, m.len, m.len)/m.len
-  Us <- svd(D)$u
+  basis <- get_accpgd_basis(m.len)
+  D <- basis$D
+  Us <- basis$Us
   
   comp.grad <- function(a, M, S) {
     S*(M-a)
