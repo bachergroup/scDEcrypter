@@ -1,6 +1,6 @@
 Package: scDEcrypter
 Title: An R package uses limited information to predict virus cell infection, and does differentially expressed gene expression analysis
-Version: 0.7.0
+Version: 0.8.0
 Authors@R: 
     person("Luer", "Zhong", , "luerzhong@ufl.edu", role = c("aut", "cre"))
 Description: What the package does (one paragraph).

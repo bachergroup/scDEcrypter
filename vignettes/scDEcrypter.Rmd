@@ -15,8 +15,8 @@ editor_options:
 ---
 
 # Introduction
-Detecting infected cells in viral scRNA-seq data is challenging because viral transcripts are often sparse or undetected, leaving most infection labels unknown and limiting downstream differential expression analyses. scDEcrypter is a statistical framework we developed to address this problem by modeling infection status, and optionally an additional partitioning variables such as cell type. The method uses a penalized multiway mixture model, anchored by a small set of confidently labeled cells, to recover latent infection states with high accuracy even when viral reads are extremely limited. To avoid double-dipping, scDEcrypter employs a data-splitting strategy, using one subset of cells for parameter estimation and another independent subset for differential expression testing. A fast approximate likelihood ratio test is then used to identify infection-associated genes within each cell type. scDEcrypter can improve power, robustness, and biological interpretability. 
 
+Detecting infected cells in viral scRNA-seq data is challenging because viral transcripts are often sparse or undetected, leaving most infection labels unknown and limiting downstream differential expression analyses. scDEcrypter is a statistical framework we developed to address this problem by modeling infection status, and optionally an additional partitioning variables such as cell type. The method uses a penalized multiway mixture model, anchored by a small set of confidently labeled cells, to recover latent infection states with high accuracy even when viral reads are extremely limited. To avoid double-dipping, scDEcrypter employs a data-splitting strategy, using one subset of cells for parameter estimation and another independent subset for differential expression testing. A fast approximate likelihood ratio test is then used to identify infection-associated genes within each cell type. scDEcrypter can improve power, robustness, and biological interpretability.
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(
@@ -26,8 +26,11 @@ knitr::opts_chunk$set(
 ```
 
 # Run scDEcrypter
+
 ## Install the package
+
 Before analysis can be performed, scDEcrypter must be installed. The easiest way to install scDEcrypter is through GitHub:
+
 ```{r, results='hide', message=FALSE, warning=FALSE}
 # devtools::install_github("https://github.com/bachergroup/scDEcrypter")
 
@@ -35,7 +38,8 @@ library(scDEcrypter)
 ```
 
 ## Required inputs
-The input data should be a Seurat object. For this walk-through, we will analyze the a small subset of cells from the SARS-CoV-2 dataset from Ravindra NG, et al. *Single-cell longitudinal analysis of SARS-CoV-2 infection in human airway epithelium identifies target cells, alterations in gene expression, and cell state changes*. PLoS Biol. 2021;19(3):e3001143. For the purpose of this vignette, we have 2,000 cells randomly subset from the MOCK (uninfected control sample) and DPI3 (three days post-infection). 
+
+The input data should be a Seurat object. For this walk-through, we will analyze the a small subset of cells from the SARS-CoV-2 dataset from Ravindra NG, et al. *Single-cell longitudinal analysis of SARS-CoV-2 infection in human airway epithelium identifies target cells, alterations in gene expression, and cell state changes*. PLoS Biol. 2021;19(3):e3001143. For the purpose of this vignette, we have 2,000 cells randomly subset from the MOCK (uninfected control sample) and DPI3 (three days post-infection).
 
 ```{r, eval=TRUE}
 set.seed(120)
@@ -44,11 +48,11 @@ data("seu_sub")
 print(table(seu_sub$ctype, seu_sub$Sample))
 ```
 
-
 ### Define the partitioning variable
-scDEcrypter requires an additional cell-level label, which we refer to as a partitioning variable. This variable defines groups of cells that are expected to differ in their baseline expression patterns, and it helps the model separate biological heterogeneity unrelated to viral infection status. Importantly, the partitioning variable is flexible and does not need to be cell type. It can represent any categorical cell-level attribute that the user deems relevant. 
 
-For the example here, we use eight epithelial cell-type categories as the partitioning variable. Users may adapt or replace this mapping entirely depending on the structure of their own dataset. 
+scDEcrypter requires an additional cell-level label, which we refer to as a partitioning variable. This variable defines groups of cells that are expected to differ in their baseline expression patterns, and it helps the model separate biological heterogeneity unrelated to viral infection status. Importantly, the partitioning variable is flexible and does not need to be cell type. It can represent any categorical cell-level attribute that the user deems relevant.
+
+For the example here, we use eight epithelial cell-type categories as the partitioning variable. Users may adapt or replace this mapping entirely depending on the structure of their own dataset.
 
 **The partitioning variable must be numerically coded.**
 
@@ -56,9 +60,9 @@ For the example here, we use eight epithelial cell-type categories as the partit
 seu_sub$C.preLabel <- as.integer(factor(seu_sub$ctype))
 ```
 
-
 ### Define the viral status variable
-In scRNA-seq viral infection datasets, each cell's infection status is not fully observed. scDEcrypter is explicitly designed to model this partially latent structure. These confidently labeled cells serve as anchors for the mixture model, while the remaining cells are treated as unknown and their infection status is inferred probabilistically during model fitting. 
+
+In scRNA-seq viral infection datasets, each cell's infection status is not fully observed. scDEcrypter is explicitly designed to model this partially latent structure. These confidently labeled cells serve as anchors for the mixture model, while the remaining cells are treated as unknown and their infection status is inferred probabilistically during model fitting.
 
 As input data, scDEcrypter requires requires a cell-level viral status variable that indicates whether each cell has a confidently known status or is unknown. Note that our model is not restricted to having just two infection states, and the user may specify this directly in the next step. In general, we recommend the following pre-labeling approach:
 
@@ -90,8 +94,8 @@ seu_sub$V.preLabel <- V.obs
 
 ```
 
-
 ### Define the number of infection states and partitioning variable classes
+
 scDEcrypter models gene expression using a multiway mixture model, where each cell belongs to a latent combination of a viral status class (e.g., infected, uninfected), and a partitioning variable class (e.g., cell type, biological group, or any other cell-level label).
 
 To fit this model, users must additionally specify:
@@ -102,7 +106,7 @@ c_star: the total number of categories for the chosen partitioning variable.
 
 These values define the full set of latent and observed combinations that scDEcrypter will learn.
 
-In many viral scRNA-seq datasets, infection status is not simply “infected vs uninfected.” Cells may exhibit transcriptional profiles consistent with an intermediate ‘bystander’ state, where they are not infected but respond to nearby infected cells. Thus, we may want to allow for the possibility of three infection states. This allows scDEcrypter to infer these three viral states separately and perform differential expression comparisons between them. 
+In many viral scRNA-seq datasets, infection status is not simply “infected vs uninfected.” Cells may exhibit transcriptional profiles consistent with an intermediate ‘bystander’ state, where they are not infected but respond to nearby infected cells. Thus, we may want to allow for the possibility of three infection states. This allows scDEcrypter to infer these three viral states separately and perform differential expression comparisons between them.
 
 The partitioning variable (e.g., cell type) can also be partially latent. Users must specify the total number of categories the model should expect for that variable as well. For this dataset, we stick to the number of annotated cell-types and it is fully labeled.
 
@@ -112,15 +116,16 @@ c_star <- 8
 ```
 
 ## Run the pre-processing function
+
 To accurately recover latent infection states and perform unbiased differential expression testing, scDEcrypter separates the dataset into two independent subsets:
 
 A generation set — used only for parameter estimation in the penalized multiway mixture model;
 
 A test set — used only for downstream inference and likelihood-ratio testing.
 
-This split ensures that the same data are not used for both estimating mixture parameters and testing hypotheses, thereby avoiding “double dipping,” a key principle emphasized in the scDEcrypter paper.
+This split ensures that the same data are not used for both estimating mixture parameters and testing hypotheses. The remaining pre-processing including normalization and transformation are performed separately on the two datasets to avoid data leakage.
 
-The function preprocess_scDEcrypter() automates all required pre-processing steps. The function returns a Seurat object with the VST normalized data in the data.Generation and data.Test. The metadata also includes a column named Index_Split that indicated the set each cell belongs to. The parameter train_frac controls the proportion of splitting between generation and test sets (stratified by known infection and partitioning labels). The parameters  c_obs_var and v_obs_var specify the meta-data column containing the pre-labels. The default names are C.preLabel and V.preLabel as in the steps above. Users may specify their own columns if named differently.
+The function preprocess_scDEcrypter() automates all required pre-processing steps. The function returns a Seurat object with the VST normalized data in the data.Generation and data.Test. The metadata also includes a column named Index_Split that indicated the set each cell belongs to. The parameter train_frac controls the proportion of splitting between generation and test sets (stratified by known infection and partitioning labels). The parameters c_obs_var and v_obs_var specify the meta-data column containing the pre-labels. The default names are C.preLabel and V.preLabel as in the steps above. Users may specify their own columns if named differently.
 
 Variance stabilization is an essential part of the scDEcrypter workflow as the underlying mixture model assumes approximately Gaussian stabilized expression values. Through simulations and applications we found "shifted_log" performed consistently well.
 
@@ -129,9 +134,9 @@ seu_sub.processed <- preprocess_scDEcrypter(Data = seu_sub,
                                                train_frac = .5)
 ```
 
-scDEcrypter uses a penalized multi-way mixture model, which is computationally efficient and statistically stable when trained on a compact set of informative genes. Therefore, HVG selection is performed only on the generation set, not the full dataset. This prevents information leakage from the training set and preserves the integrity of the data-splitting framework described in the manuscript. 
+scDEcrypter uses a penalized multi-way mixture model, which is computationally efficient and statistically stable when trained on a compact set of informative genes. Therefore, HVG selection is performed only on the generation set, not the full dataset. This prevents information leakage from the training set and preserves the integrity of the data-splitting framework described in the manuscript.
 
-In order to select genes driving a truly infected versus bystander or uninfected signal, we recommend a cell-type–aware HVG selection procedure that considers cell type and sample status. Users may customize the HVG selection method, as long as HVGs are selected only from the generation set, and the resulting HVG set is passed into the model-fitting step. This ensures that downstream inference remains valid and independent from the model training process. 
+In order to select genes driving a truly infected versus bystander or uninfected signal, we recommend a cell-type–aware HVG selection procedure that considers cell type and sample status. Users may customize the HVG selection method, as long as HVGs are selected only from the generation set, and the resulting HVG set is passed into the model-fitting step. This ensures that downstream inference remains valid and independent from the model training process.
 
 We suggest anywhere between 100-200 highly variable genes selected in total once aggregated across cell-types.
 
@@ -147,8 +152,8 @@ print(length(top_genes.HVG))
 
 ```
 
-
 ## Cross validation to select tuning parameter
+
 scDEcrypter employs a penalized mixture modeling framework, where the penalty parameter lambda controls the amount of regularization applied to the model’s mean parameters. Choosing an appropriate lambda is essential for balancing model flexibility with stability, and for recovering biologically meaningful latent infection states. To accomplish this, scDEcrypter provides a built-in cross-validation procedure that evaluates a set of candidate lambda values using the held-out generation set created earlier.
 
 Users may customize three aspects of lambda selection:
@@ -160,6 +165,7 @@ Users may customize three aspects of lambda selection:
 `tol`: A convergence tolerance determines when the EM algorithm has stabilized.
 
 All other required inputs, such as stabilized expression values, label vectors, and data splits, were already constructed in earlier steps.
+
 ```{r, eval=TRUE}
 lambdas <- c(1e2, 1e1, 1, 1e-1, 1e-2, 1e-3, 1e-4, 1e-5, 1e-6, 1e-7, 1e-8) # wide range
 
@@ -174,11 +180,12 @@ best_lambda <- cv_lambda$best_lambda
 ```
 
 ## Fit the scDEcrypter multiway mixture model
+
 After selecting the optimal penalty parameter, we fit the full scDEcrypter model using the generation set. Recall that the generation set was set aside specifically for model training to avoid using the same data for both parameter estimation and downstream inference. In this step, scDEcrypter estimates all components of the penalized multiway mixture model described in the manuscript. These fitted parameters are essential for:
 
-1. Inferring probabilistic cell state weights for cells whose viral status is unknown (NA in V.obs)
+1.  Inferring probabilistic cell state weights for cells whose viral status is unknown (NA in V.obs)
 
-2. Performing differential expression analysis based on the inferred infection groups
+2.  Performing differential expression analysis based on the inferred infection groups
 
 The results_generation object stores:
 
@@ -206,10 +213,10 @@ results_generation <- fit_scDEcrypter(Data = seurat_train[top_genes.HVG,],
                                       lambda.vec = best_lambda)
 ```
 
-
 # Inferring test set cell weights
 
 ## Exploring infection stateand/or additional partition variables weight
+
 After estimating the multiway mixture model on the generation set, scDEcrypter can be used to infer probability weights for infection states for all cells by using their conditional probabilities across the latent viral-status classes. These conditional probabilities summarize how strongly each cell is supported as “infected,” “uninfected,” or “bystander”, based on both its gene expression and the structure of the mixture model. These are obtained by running the getTestWeights function on the scDEcrypter outputs and the test dataset and stored as weights_test.
 
 ```{r, eval=TRUE}
@@ -224,8 +231,7 @@ Applying a conditional probability threshold explores how cells are weighted acr
 
 Similarly, the above applies to cell-type assignment if cell-types were partially pre-labeled. Users may specify a threshold or set the option cutoffPartition to "max" indicating a cell should be assigned to the most likely cell-type, that is, the one it has the maximum estimated probability.
 
-thresholdScoring outputs the seurat object with cell-state assignment columns added to the meta-data named: 
-pred_InfectionState and pred_PartitionState. Cells that do not have a weight above the threshold or are exactly tied, receive a state of "NotAssigned".
+thresholdScoring outputs the seurat object with cell-state assignment columns added to the meta-data named: pred_InfectionState and pred_PartitionState. Cells that do not have a weight above the threshold or are exactly tied, receive a state of "NotAssigned".
 
 ```{r, eval=TRUE}
 testData_preds <- thresholdScoring(results_generation, testData, 
@@ -234,7 +240,6 @@ testData_preds <- thresholdScoring(results_generation, testData,
                                     independentThres = TRUE)
 print(table(testData_preds$pred_InfectionState, testData_preds$Sample))
 ```
-
 
 # Differential Expression Analysis
 
@@ -254,9 +259,9 @@ print(length(top_genes.HVG_test))
 
 scDEcrypter performs a cell-type–specific likelihood-ratio test (LRT) to evaluate whether gene expression differs between the two infection states (e.g., infected vs. bystander) within each cell type. The LRT compares:
 
-1. Alternative model: gene expression depends on infection status,
+1.  Alternative model: gene expression depends on infection status,
 
-2. Null model: gene expression does not depend on infection status.
+2.  Null model: gene expression does not depend on infection status.
 
 To control the false-discovery rate across thousands of genes, scDEcrypter applies the Benjamini–Hochberg (BH) FDR procedure. In addition to significance testing, scDEcrypter computes the estimated log fold-change in expression between infection states within each cell type.
 
@@ -273,11 +278,13 @@ print(head(testData_de$logfc[order(testData_de$logfc$logFC_Ciliated.cells_Infect
 ```{r, eval=TRUE, tidy = TRUE, tidy.opts = list(width.cutoff = 50), fig.align="center", fig.height=4, fig.width=9.5}
 Seurat::VlnPlot(testData_preds, features = "CAPS", group.by = "ctype", split.by = "pred_InfectionState") 
 ```
- 
 
 <details>
-  <summary>**Session Info**</summary>
+
+<summary>**Session Info**</summary>
+
 ```{r}
 sessionInfo()
 ```
+
 </details>

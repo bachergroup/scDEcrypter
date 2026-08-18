@@ -69,11 +69,29 @@ approx_complete_data_loglik_pair_fast <- function(Y, M.alt, sigma2.alt, M.null, 
 #' using mean weights to account for condition effects.
 #'
 #' keywords internal
+safe_weights <- function(weights) {
+  if (is.null(dim(weights))) {
+    stop("weights must be a matrix or 3D array, not a vector.")
+  }
+
+  if (length(dim(weights)) == 2L) {
+    weights <- array(weights, dim = c(nrow(weights), ncol(weights), 1L))
+  }
+
+  if (length(dim(weights)) != 3L) {
+    stop("weights must have 2 or 3 dimensions.")
+  }
+
+  weights
+}
+
 resolve_comp_status_indices <- function(W, compStatus) {
+
   if (is.character(compStatus)) {
     status_names <- dimnames(W)[[3]]
     if (is.null(status_names)) {
-      stop("Character compStatus requires named condition levels in W.")
+      status_names <- paste0("status_", seq_len(dim(W)[3]))
+      dimnames(W)[[3]] <- status_names
     }
     comp_idx <- match(compStatus, status_names)
     if (anyNA(comp_idx)) {
@@ -91,8 +109,16 @@ resolve_comp_status_indices <- function(W, compStatus) {
 }
 
 weighted_means_from_weights <- function(Y, weights) {
-  weight_sums <- colSums(weights)
-  weighted_totals <- t(crossprod(weights, Y))
+  weights <- safe_weights(weights)
+
+  if (dim(weights)[3] == 1L) {
+    weights_mat <- weights[, , 1L, drop = FALSE]
+  } else {
+    weights_mat <- weights
+  }
+
+  weight_sums <- colSums(weights_mat)
+  weighted_totals <- t(crossprod(weights_mat, Y))
   sweep(weighted_totals, 2, weight_sums, "/")
 }
 
@@ -104,7 +130,11 @@ DE_mu <- function(Y, W, compStatus) {
                  dimnames = list(colnames(Y), dimnames(W)[[2]], dimnames(W)[[3]]))
 
   for (status_idx in comp_idx) {
-    M_out[, , status_idx] <- weighted_means_from_weights(Y, W[, , status_idx, drop = FALSE][, , 1])
+    weights_slice <- W[, , status_idx, drop = FALSE]
+    if (length(dim(weights_slice)) == 3L && dim(weights_slice)[3] == 1L) {
+      weights_slice <- weights_slice[, , 1L, drop = FALSE]
+    }
+    M_out[, , status_idx] <- weighted_means_from_weights(Y, weights_slice)
   }
 
   if (length(rest_idx) > 0) {
@@ -192,7 +222,13 @@ DE_sigma2 <- function(Y, W, M) {
   Y_sq <- Y * Y
 
   for (status_idx in seq_len(dim(W)[3])) {
-    weights <- W[, , status_idx, drop = FALSE][, , 1]
+    weights <- W[, , status_idx, drop = FALSE]
+    if (length(dim(weights)) > 2L) {
+      weights <- weights[, , 1, drop = FALSE]
+    }
+    if (is.null(dim(weights))) {
+      weights <- matrix(weights, ncol = 1L)
+    }
     weight_sums <- colSums(weights)
 
     first_moment <- t(crossprod(weights, Y))
@@ -281,8 +317,14 @@ compute_logFC <- function(M, compStatus = NULL) {
     for (i in seq_len(ncol(combs))) {
         v1 <- combs[1, i]
         v2 <- combs[2, i]
-        
-        df <- M[, , v1] - M[, , v2]
+
+        df1 <- M[, , v1, drop = FALSE]
+        df2 <- M[, , v2, drop = FALSE]
+        df <- df1 - df2
+
+        if (is.null(dim(df)) || length(dim(df)) < 2L) {
+            df <- matrix(df, nrow = length(df), ncol = 1L)
+        }
 
         colnames(df) <- paste0("logFC_", colnames(df), "_", v1, "_vs_", v2)
         
