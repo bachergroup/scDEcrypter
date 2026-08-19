@@ -112,9 +112,18 @@ weighted_means_from_weights <- function(Y, weights) {
   weights <- safe_weights(weights)
 
   if (dim(weights)[3] == 1L) {
-    weights_mat <- weights[, , 1L, drop = FALSE]
+    weights_mat <- weights[, , 1L]
   } else {
-    weights_mat <- weights
+    # Collapse condition dimension to one 2D matrix for weighted means.
+    weights_mat <- apply(weights, c(1, 2), sum)
+  }
+
+  if (!is.matrix(weights_mat)) {
+    weights_mat <- as.matrix(weights_mat)
+  }
+
+  if (nrow(weights_mat) != nrow(Y)) {
+    stop("weights and Y must have the same number of rows (cells).")
   }
 
   weight_sums <- colSums(weights_mat)
@@ -224,10 +233,10 @@ DE_sigma2 <- function(Y, W, M) {
   for (status_idx in seq_len(dim(W)[3])) {
     weights <- W[, , status_idx, drop = FALSE]
     if (length(dim(weights)) > 2L) {
-      weights <- weights[, , 1, drop = FALSE]
+      weights <- weights[, , 1]
     }
-    if (is.null(dim(weights))) {
-      weights <- matrix(weights, ncol = 1L)
+    if (!is.matrix(weights)) {
+      weights <- as.matrix(weights)
     }
     weight_sums <- colSums(weights)
 
