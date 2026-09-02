@@ -105,23 +105,26 @@ deTest <- function(mod_results, testData,
     if (test.method == "permutation") {
        message("Calculating permutation test statistics ...")
       group_indices <- Filter(length, split(seq_along(c_obs), c_obs))
-      permute_apply <- if (nPerm > 1000) parallel::mclapply else pbmclapply
-      permuted_lrt <- permute_apply(
-        X = seq_len(nPerm),
-        FUN = function(iteration) {
-          W_perm <- permute_weights_within_groups(W.test, group_indices)
-          de_lrt_exceeds_from_weights(Y_test, W_perm, compGroups, lrt)
-        },
-        mc.cores = mc.cores
-      )
+      
+      cl <- parallel::makeCluster(mc.cores)
+      on.exit(parallel::stopCluster(cl), add = TRUE)
+      parallel::clusterExport(cl,
+              c("Y_test", "W.test", "group_indices", "compGroups", "lrt"),
+              envir = environment())
+      parallel::clusterEvalQ(cl, loadNamespace("scDEcrypter"))
+      parallel::clusterSetRNGStream(cl)
+            
+      perm_fun <- function(iteration) {
+              W_perm <- scDEcrypter:::permute_weights_within_groups(W.test, group_indices)
+              scDEcrypter:::de_lrt_exceeds_from_weights(Y_test, W_perm, compGroups, lrt)
+            }
+      environment(perm_fun) <- globalenv()
 
-      exceed_counts <- matrix(0L,
-                              nrow = nrow(lrt),
-                              ncol = ncol(lrt),
-                              dimnames = dimnames(lrt))
-      for (perm_lrt in permuted_lrt) {
-        exceed_counts <- exceed_counts + perm_lrt
-      }
+      permuted_lrt <- pbapply::pblapply(seq_len(nPerm), perm_fun, cl = cl)     
+      
+
+      exceed_counts <- Reduce(`+`, permuted_lrt)
+      dimnames(exceed_counts) <- dimnames(lrt)
       pval <- (exceed_counts + 1) / (nPerm + 1)
     } else {
       pval <- apply(lrt, 2, function(x) pchisq(x, df = 1, lower.tail = FALSE))
