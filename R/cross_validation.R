@@ -49,13 +49,17 @@ cross_validate_lambda <- function(Data,
                 stop("Column 'V.preLabel' not found in Data")
               })
     V.levels <- sort(unique(na.omit(v_obs)))
-    folds_list <- vector("list", K)
+    folds_list <- lapply(seq_len(K), function(k) character(0))
+    
     
     for (v in V.levels) {
         idx_v <- names(which(v_obs == v))
         fold_indices_v <- caret::createFolds(y=seq_along(idx_v), k = K, 
                                       list = TRUE, returnTrain = FALSE)
-        folds_list <- lapply(fold_indices_v, function(x) idx_v[x])
+        
+        folds_list <- lapply(seq_len(K), function(x) {
+            c(folds_list[[x]], idx_v[fold_indices_v[[x]]])
+        })
     }
     
     idx_na <- names(which(is.na(v_obs)))
@@ -69,7 +73,7 @@ cross_validate_lambda <- function(Data,
     
    if (NCORES %% K == 0) {
       main_cores <- K
-      sub_cores_per_main <- rep(floor(NCORES / K), K)
+      sub_cores_per_main <- NCORES %/% K
    } else {
        main_cores = NCORES
        sub_cores_per_main = 1
