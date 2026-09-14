@@ -9,7 +9,13 @@
 What the package does (one paragraph).
 }
 \author{
-\strong{Maintainer}: Luer Zhong \email{luerzhong@ufl.edu}
+\strong{Maintainer}: Rhonda Bacher \email{rbacher@ufl.edu}
+
+Authors:
+\itemize{
+  \item Aaron Molstad
+  \item Luer Zhong \email{luerzhong@ufl.edu}
+}
 
 }
 \keyword{internal}

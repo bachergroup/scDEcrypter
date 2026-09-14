@@ -112,6 +112,41 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// panel_perm_lrt_rcpp
+NumericMatrix panel_perm_lrt_rcpp(const NumericMatrix& Lbase, const NumericVector& y, const IntegerMatrix& perm, const NumericVector& mu, const NumericVector& sigma2, const IntegerVector& c_obs, const IntegerVector& v_obs, int C, int V, const IntegerVector& comp_idx, double var_floor, int threads);
+RcppExport SEXP _scDEcrypter_panel_perm_lrt_rcpp(SEXP LbaseSEXP, SEXP ySEXP, SEXP permSEXP, SEXP muSEXP, SEXP sigma2SEXP, SEXP c_obsSEXP, SEXP v_obsSEXP, SEXP CSEXP, SEXP VSEXP, SEXP comp_idxSEXP, SEXP var_floorSEXP, SEXP threadsSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const NumericMatrix& >::type Lbase(LbaseSEXP);
+    Rcpp::traits::input_parameter< const NumericVector& >::type y(ySEXP);
+    Rcpp::traits::input_parameter< const IntegerMatrix& >::type perm(permSEXP);
+    Rcpp::traits::input_parameter< const NumericVector& >::type mu(muSEXP);
+    Rcpp::traits::input_parameter< const NumericVector& >::type sigma2(sigma2SEXP);
+    Rcpp::traits::input_parameter< const IntegerVector& >::type c_obs(c_obsSEXP);
+    Rcpp::traits::input_parameter< const IntegerVector& >::type v_obs(v_obsSEXP);
+    Rcpp::traits::input_parameter< int >::type C(CSEXP);
+    Rcpp::traits::input_parameter< int >::type V(VSEXP);
+    Rcpp::traits::input_parameter< const IntegerVector& >::type comp_idx(comp_idxSEXP);
+    Rcpp::traits::input_parameter< double >::type var_floor(var_floorSEXP);
+    Rcpp::traits::input_parameter< int >::type threads(threadsSEXP);
+    rcpp_result_gen = Rcpp::wrap(panel_perm_lrt_rcpp(Lbase, y, perm, mu, sigma2, c_obs, v_obs, C, V, comp_idx, var_floor, threads));
+    return rcpp_result_gen;
+END_RCPP
+}
+// perm_suffstats_rcpp
+List perm_suffstats_rcpp(const NumericMatrix& Y, const NumericMatrix& Bg, int threads);
+RcppExport SEXP _scDEcrypter_perm_suffstats_rcpp(SEXP YSEXP, SEXP BgSEXP, SEXP threadsSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const NumericMatrix& >::type Y(YSEXP);
+    Rcpp::traits::input_parameter< const NumericMatrix& >::type Bg(BgSEXP);
+    Rcpp::traits::input_parameter< int >::type threads(threadsSEXP);
+    rcpp_result_gen = Rcpp::wrap(perm_suffstats_rcpp(Y, Bg, threads));
+    return rcpp_result_gen;
+END_RCPP
+}
 
 static const R_CallMethodDef CallEntries[] = {
     {"_scDEcrypter_approx_complete_data_loglik_rcpp", (DL_FUNC) &_scDEcrypter_approx_complete_data_loglik_rcpp, 4},
@@ -121,6 +156,8 @@ static const R_CallMethodDef CallEntries[] = {
     {"_scDEcrypter_de_mu_rcpp", (DL_FUNC) &_scDEcrypter_de_mu_rcpp, 3},
     {"_scDEcrypter_de_mu_null_rcpp", (DL_FUNC) &_scDEcrypter_de_mu_null_rcpp, 3},
     {"_scDEcrypter_de_sigma2_rcpp", (DL_FUNC) &_scDEcrypter_de_sigma2_rcpp, 3},
+    {"_scDEcrypter_panel_perm_lrt_rcpp", (DL_FUNC) &_scDEcrypter_panel_perm_lrt_rcpp, 12},
+    {"_scDEcrypter_perm_suffstats_rcpp", (DL_FUNC) &_scDEcrypter_perm_suffstats_rcpp, 3},
     {NULL, NULL, 0}
 };
 

@@ -29,3 +29,11 @@ de_sigma2_rcpp <- function(Y, W, M) {
     .Call(`_scDEcrypter_de_sigma2_rcpp`, Y, W, M)
 }
 
+panel_perm_lrt_rcpp <- function(Lbase, y, perm, mu, sigma2, c_obs, v_obs, C, V, comp_idx, var_floor, threads = 1L) {
+    .Call(`_scDEcrypter_panel_perm_lrt_rcpp`, Lbase, y, perm, mu, sigma2, c_obs, v_obs, C, V, comp_idx, var_floor, threads)
+}
+
+perm_suffstats_rcpp <- function(Y, Bg, threads) {
+    .Call(`_scDEcrypter_perm_suffstats_rcpp`, Y, Bg, threads)
+}
+

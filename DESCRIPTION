@@ -1,8 +1,13 @@
 Package: scDEcrypter
 Title: An R package uses limited information to predict virus cell infection, and does differentially expressed gene expression analysis
-Version: 0.8.2
-Authors@R: 
-    person("Luer", "Zhong", , "luerzhong@ufl.edu", role = c("aut", "cre"))
+Version: 0.8.4
+Authors@R: c(
+    person(given="Rhonda", family="Bacher", email="rbacher@ufl.edu", role = c("aut", "cre")),
+    person(given="Aaron", family="Molstad", role = "aut"),
+    person(given="Luer", family="Zhong", email="luerzhong@ufl.edu", role = "aut")
+    )
+Author: Rhonda Bacher [aut, cre], Aaron Molstad [aut], Luer Zhong [aut]
+Maintainer: Rhonda Bacher <rbacher@ufl.edu>
 Description: What the package does (one paragraph).
 License: CC BY 4.0 + file LICENSE
 Encoding: UTF-8
@@ -24,5 +29,6 @@ Imports:
     caret,
     transformGamPoi,
     Seurat (>= 5.0.0),
+    SeuratObject,
     pbmcapply
 LinkingTo: Rcpp, RcppArmadillo
