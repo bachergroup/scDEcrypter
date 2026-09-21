@@ -26,6 +26,7 @@ Imports:
     Rcpp,
     utils,
     matrixStats,
+    Matrix,
     caret,
     transformGamPoi,
     Seurat (>= 5.0.0),

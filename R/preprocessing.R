@@ -97,12 +97,12 @@ preprocess_scDEcrypter <- function(Data,
     Data[["RNA"]] <- split(Data[["RNA"]], f = Data$Index_Split)
 
     message("Applying VST to generation set...")    
-    Y_gen <- transformGamPoi::transformGamPoi(as.matrix(Data[["RNA"]]$counts.Generation),
+    Y_gen <- transformGamPoi::transformGamPoi(Data[["RNA"]]$counts.Generation,
                                                    transformation = vs_method,
                                                    size_factors = "poscounts"
     )
     message("Applying VST to test set...")        
-    Y_test <- transformGamPoi::transformGamPoi(as.matrix(Data[["RNA"]]$counts.Test),
+    Y_test <- transformGamPoi::transformGamPoi(Data[["RNA"]]$counts.Test,
                                                     transformation = vs_method,
                                                     size_factors = "poscounts"
     )
@@ -139,7 +139,12 @@ get_top_genes <- function(seurat_obj, partition_colname="C.preLabel",
 	
   top_genesA <- sapply(unique(vargroup), function(x) {
 							tmpCells <- names(which(vargroup == x))
-							all_var <- apply(seurat_obj[["RNA"]]$data.Generation[, tmpCells], 1, var)
+							Ysub <- seurat_obj[["RNA"]]$data.Generation[, tmpCells]
+							# sparse-safe row variance: E[x^2] - E[x]^2, scaled to sample variance
+							n <- ncol(Ysub)
+							rm1 <- Matrix::rowMeans(Ysub)
+							rm2 <- Matrix::rowMeans(Ysub^2)
+							all_var <- (rm2 - rm1^2) * n / (n - 1)
 							all_var_ord <- all_var[order(all_var, decreasing = TRUE)[1:n_genes_per_group]]
     return(names(all_var_ord))
   })
