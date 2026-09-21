@@ -53,6 +53,52 @@ splitDataIDX <- function(c_obs, v_obs, train_frac = 0.5) {
 
 
 
+#' Sparse "poscounts" size factors
+#'
+#' Replicates \code{transformGamPoi}'s "poscounts" size factor estimation
+#' without densifying the counts matrix (the upstream version replaces zeros
+#' with \code{NA}, which converts sparse input to a dense \code{dgeMatrix}).
+#'
+#' @param counts A genes x cells counts matrix (sparse \code{dgCMatrix} preferred).
+#' @return Numeric vector of size factors, one per cell.
+#' @importFrom stats median
+#' @keywords internal
+poscounts_size_factors <- function(counts) {
+    if (!inherits(counts, "dgCMatrix")) {
+        counts <- methods::as(methods::as(counts, "CsparseMatrix"), "dgCMatrix")
+    }
+    n_cells <- ncol(counts)
+    n_genes <- nrow(counts)
+    
+    # rowMeans of log(counts + 0.5), accounting for implicit zeros (log(0.5))
+    nz_per_row <- tabulate(counts@i + 1L, nbins = n_genes)
+    row_log_sums <- numeric(n_genes)
+    sums <- rowsum(log(counts@x + 0.5), counts@i + 1L)
+    row_log_sums[as.integer(rownames(sums))] <- sums[, 1]
+    lgm <- (row_log_sums + (n_cells - nz_per_row) * log(0.5)) / n_cells
+    
+    # per-cell median of log(count) - lgm[gene] over nonzero entries only
+    p <- counts@p
+    log_ratio <- log(counts@x) - lgm[counts@i + 1L]
+    sf <- vapply(seq_len(n_cells), function(j) {
+        if (p[j + 1L] == p[j]) return(NaN)
+        median(log_ratio[(p[j] + 1L):p[j + 1L]])
+    }, numeric(1))
+    sf <- exp(sf)
+    
+    # stabilize to geometric mean 1 (same as transformGamPoi)
+    all_zero_column <- is.nan(sf) | sf <= 0
+    sf[all_zero_column] <- NA
+    if (any(all_zero_column)) {
+        sf <- sf / exp(mean(log(sf), na.rm = TRUE))
+        sf[all_zero_column] <- 0.001
+    } else {
+        sf <- sf / exp(mean(log(sf)))
+    }
+    sf
+}
+
+
 #' Preprocess data for scDEcrypter
 #' 
 #' Data will first be split into training and testing, followed
@@ -97,14 +143,16 @@ preprocess_scDEcrypter <- function(Data,
     Data[["RNA"]] <- split(Data[["RNA"]], f = Data$Index_Split)
 
     message("Applying VST to generation set...")    
-    Y_gen <- transformGamPoi::transformGamPoi(Data[["RNA"]]$counts.Generation,
+    counts_gen <- Data[["RNA"]]$counts.Generation
+    Y_gen <- transformGamPoi::transformGamPoi(counts_gen,
                                                    transformation = vs_method,
-                                                   size_factors = "poscounts"
+                                                   size_factors = poscounts_size_factors(counts_gen)
     )
     message("Applying VST to test set...")        
-    Y_test <- transformGamPoi::transformGamPoi(Data[["RNA"]]$counts.Test,
+    counts_test <- Data[["RNA"]]$counts.Test
+    Y_test <- transformGamPoi::transformGamPoi(counts_test,
                                                     transformation = vs_method,
-                                                    size_factors = "poscounts"
+                                                    size_factors = poscounts_size_factors(counts_test)
     )
     
     Data[["RNA"]]$data.Generation <- Y_gen
