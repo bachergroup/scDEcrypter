@@ -138,7 +138,7 @@ runFOLDS <- function(x, fold_indices, trainData,
     message("[Fold ", x, "] Fitted model, evaluating lambdas...")
     
     # Evaluate each lambda on the validation set
-    Y_val <- t(trainData[["RNA"]]$data.Generation[,validation_idx])
+    Y_val <- t(as.matrix(trainData[["RNA"]]$data.Generation[,validation_idx]))
     c_obs_val <- trainData$C.preLabel[validation_idx]
     v_obs_val <- trainData$V.preLabel[validation_idx]
     

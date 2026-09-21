@@ -51,8 +51,8 @@ fit_scDEcrypter <- function(Data, c_obs=NULL, v_obs=NULL, infectionLabels=NULL, 
   if(is.null(c_obs)) c_obs <- Data$C.preLabel
   if(is.null(v_obs)) v_obs <- Data$V.preLabel
 
-  # Extract and rotate data
-  Y <- t(Data[["RNA"]]$data.Generation)
+  # Extract and rotate data (as.matrix: layer may be sparse; EM needs dense)
+  Y <- t(as.matrix(Data[["RNA"]]$data.Generation))
 
   M_lambda_list <- list()
   sigma2_lambda_list <- list()

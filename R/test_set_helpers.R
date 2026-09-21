@@ -22,10 +22,11 @@ select_by_threshold <- function(x, cutoff, f.labels) {
 }
 
 extract_test_components <- function(testData) {
-  Y_test <- tryCatch(t(testData[["RNA"]]$data.Test), error = function(e) NULL)
+  # Matrix::t keeps sparse layers sparse; consumers densify after gene subsetting
+  Y_test <- tryCatch(Matrix::t(testData[["RNA"]]$data.Test), error = function(e) NULL)
   if (is.null(Y_test) && inherits(testData, "Seurat")) {
     Y_test <- tryCatch(
-      t(SeuratObject::LayerData(testData, assay = "RNA", layer = "data.Test")),
+      Matrix::t(SeuratObject::LayerData(testData, assay = "RNA", layer = "data.Test")),
       error = function(e) NULL
     )
   }
