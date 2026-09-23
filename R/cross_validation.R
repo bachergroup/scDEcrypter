@@ -10,8 +10,9 @@
 #'
 #' @param Data Numeric matrix of dimension \code{n x p}, training data.
 #'   Each row is a sample (cell), each column is a feature (e.g. gene).
-#' @param lambda.cands Numeric vector. Candidate \eqn{\lambda} values to be
-#'   cross-validated.
+#' @param lambda.cands Numeric vector of per-cell penalty values to be
+#'   cross-validated. A fold with \eqn{n_{train}} cells fits the objective
+#'   \eqn{-\ell_{train} + n_{train}\lambda P(\mu)} for each candidate.
 #' @param max.iter Integer. Maximum number of EM iterations for
 #'   \code{MultiwayMixture}.
 #' @param tol Numeric. Convergence tolerance for EM updates.

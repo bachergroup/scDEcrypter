@@ -322,16 +322,6 @@ double observed_data_loglik_rcpp(const NumericMatrix& Y,
   if (probs.nrow() != c_dim || probs.ncol() != v_dim) stop("probs dims mismatch M.");
   if (c_obs.size() != n_cells || v_obs.size() != n_cells) stop("Label lengths must match nrow(Y).");
 
-  std::vector<double> row_sums(c_dim, 0.0);
-  std::vector<double> col_sums(v_dim, 0.0);
-  for (int cc = 0; cc < c_dim; ++cc) {
-    for (int vv = 0; vv < v_dim; ++vv) {
-      const double value = probs(cc, vv);
-      row_sums[cc] += value;
-      col_sums[vv] += value;
-    }
-  }
-
   double total = 0.0;
   std::vector<double> combo_values;
   combo_values.reserve(c_dim * v_dim);
@@ -343,9 +333,8 @@ double observed_data_loglik_rcpp(const NumericMatrix& Y,
     if (c_known && v_known) {
       const int cc = c_obs[ii] - 1;
       const int vv = v_obs[ii] - 1;
-      double p0 = probs(cc, vv);
-      if (!R_finite(p0) || p0 == 0.0) p0 = 0.001;
-      total += normal_log_density_sum_cell(Y, ii, cc, vv, M, sigma2, dimM, dimS) + std::log(p0);
+      const double p0 = probs(cc, vv);
+      total += p0 > 0.0 ? normal_log_density_sum_cell(Y, ii, cc, vv, M, sigma2, dimM, dimS) + std::log(p0) : R_NegInf;
       continue;
     }
 
@@ -353,9 +342,8 @@ double observed_data_loglik_rcpp(const NumericMatrix& Y,
       const int cc = c_obs[ii] - 1;
       combo_values.assign(v_dim, R_NegInf);
       for (int vv = 0; vv < v_dim; ++vv) {
-        double p1 = probs(cc, vv) / row_sums[cc];
-        if (!R_finite(p1) || p1 == 0.0) p1 = 0.001;
-        combo_values[vv] = normal_log_density_sum_cell(Y, ii, cc, vv, M, sigma2, dimM, dimS) + std::log(p1);
+        const double p1 = probs(cc, vv);
+        if (p1 > 0.0) combo_values[vv] = normal_log_density_sum_cell(Y, ii, cc, vv, M, sigma2, dimM, dimS) + std::log(p1);
       }
       total += log_sum_exp(combo_values);
       continue;
@@ -365,9 +353,8 @@ double observed_data_loglik_rcpp(const NumericMatrix& Y,
       const int vv = v_obs[ii] - 1;
       combo_values.assign(c_dim, R_NegInf);
       for (int cc = 0; cc < c_dim; ++cc) {
-        double p2 = probs(cc, vv) / col_sums[vv];
-        if (!R_finite(p2) || p2 == 0.0) p2 = 0.001;
-        combo_values[cc] = normal_log_density_sum_cell(Y, ii, cc, vv, M, sigma2, dimM, dimS) + std::log(p2);
+        const double p2 = probs(cc, vv);
+        if (p2 > 0.0) combo_values[cc] = normal_log_density_sum_cell(Y, ii, cc, vv, M, sigma2, dimM, dimS) + std::log(p2);
       }
       total += log_sum_exp(combo_values);
       continue;
@@ -377,9 +364,8 @@ double observed_data_loglik_rcpp(const NumericMatrix& Y,
     combo_values.reserve(c_dim * v_dim);
     for (int cc = 0; cc < c_dim; ++cc) {
       for (int vv = 0; vv < v_dim; ++vv) {
-        double p3 = probs(cc, vv);
-        if (!R_finite(p3) || p3 == 0.0) p3 = 0.001;
-        combo_values.push_back(normal_log_density_sum_cell(Y, ii, cc, vv, M, sigma2, dimM, dimS) + std::log(p3));
+        const double p3 = probs(cc, vv);
+        combo_values.push_back(p3 > 0.0 ? normal_log_density_sum_cell(Y, ii, cc, vv, M, sigma2, dimM, dimS) + std::log(p3) : R_NegInf);
       }
     }
     total += log_sum_exp(combo_values);

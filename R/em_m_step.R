@@ -36,10 +36,9 @@ update_mu <- function(Y, M, sigma2, W, lambda) {
     for (c in seq_len(C_dim)) {
       for (v in seq_len(V_dim)) {
         y_j <- Y[, j] # per gene, all cells
-        epsilon_icv <- 1 / W[, c, v] # weight per cell
-
-        y_bar_jcv[j,c,v] <- sum(y_j / epsilon_icv) # store for gene
-        epsilon_cv[j, c, v] <- sum(1 / epsilon_icv) # store for gene
+        weights <- W[, c, v]
+        y_bar_jcv[j,c,v] <- sum(weights * y_j)
+        epsilon_cv[j, c, v] <- sum(weights)
       }
     }
     for (c in seq_len(C_dim)) {
@@ -47,7 +46,8 @@ update_mu <- function(Y, M, sigma2, W, lambda) {
      if(all(epsilon_cv[j,c,] > 0)) {
       y_tilde_jc <- y_bar_jcv[j,c,] / epsilon_cv[j,c,]
       a <- as.vector(t(y_tilde_jc))
-      S <- as.vector(t(sigma2[j,c,] / epsilon_cv[j,c,])) 
+      # Negative expected Gaussian log-likelihood has curvature sum(W) / sigma2.
+      S <- as.vector(t(epsilon_cv[j,c,] / sigma2[j,c,]))
       # Store the updated mean values
       mu_j_updated <- AccPGD.Dm(a = a, S = S, lambda = lambda,
                                 M.init = as.vector(t(M[j,c,])),
@@ -148,4 +148,3 @@ M_step_variance <- function(Y, W, M){
 M_step_probs <- function(Y, W){
   apply(W, c(2,3), sum)/dim(Y)[1]
 }
-

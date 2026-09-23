@@ -100,26 +100,25 @@ initializer_scDEcrypter <- function(Y, c_obs, v_obs, max.iter, tol, c_star, v_st
     probs.new <- M_step_probs(Y, W1)
     M.new <- update_mu_nopenalty(Y, M, sigma2, W1)
     sigma2.new <- M_step_variance(Y, W1, M.new)
-    rel_change <- sum((M - M.new)^2)/sum(M^2)
+    rel_change <- sum((M - M.new)^2)/max(sum(M^2), .Machine$double.eps)
     if (mm == 1L || mm %% 10L == 0L) {
       message(sprintf("  [init] iteration %d/%d (rel_change=%.3e)", mm, max.iter, rel_change))
-    }
-    if(rel_change < tol){
-      message(sprintf("  [init] converged at iteration %d (rel_change=%.3e)", mm, rel_change))
-      break
     }
     M <- M.new
     sigma2 <- sigma2.new
     probs <- probs.new
+    if(rel_change < tol){
+      message(sprintf("  [init] converged at iteration %d (rel_change=%.3e)", mm, rel_change))
+      break
+    }
   }
   
   rtrn.weights <- E_step(Y, c_obs, v_obs, M, probs, sigma2)
   
   return(list(
-    "M" = M.new,
-    "sigma2" = sigma2.new, 
-    "probs" = probs.new,
+    "M" = M,
+    "sigma2" = sigma2,
+    "probs" = probs,
     "weights" = rtrn.weights
   ))
 }
-
