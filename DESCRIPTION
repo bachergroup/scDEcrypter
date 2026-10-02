@@ -11,7 +11,7 @@ Maintainer: Rhonda Bacher <rbacher@ufl.edu>
 Description: Fits a penalized Gaussian multiway mixture model to transformed
     single-cell RNA sequencing data with partially observed infection labels.
     Estimates infection-state probabilities and performs permutation-based
-    differential expression tests on held-out cells.
+    differential expression testing.
 License: CC BY 4.0 + file LICENSE
 Encoding: UTF-8
 Depends: 
