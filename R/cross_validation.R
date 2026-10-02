@@ -10,8 +10,9 @@
 #'
 #' @param Data Numeric matrix of dimension \code{n x p}, training data.
 #'   Each row is a sample (cell), each column is a feature (e.g. gene).
-#' @param lambda.cands Numeric vector. Candidate \eqn{\lambda} values to be
-#'   cross-validated.
+#' @param lambda.cands Numeric vector of per-cell penalty values to be
+#'   cross-validated. A fold with \eqn{n_{train}} cells fits the objective
+#'   \eqn{-\ell_{train} + n_{train}\lambda P(\mu)} for each candidate.
 #' @param max.iter Integer. Maximum number of EM iterations for
 #'   \code{MultiwayMixture}.
 #' @param tol Numeric. Convergence tolerance for EM updates.
@@ -49,13 +50,17 @@ cross_validate_lambda <- function(Data,
                 stop("Column 'V.preLabel' not found in Data")
               })
     V.levels <- sort(unique(na.omit(v_obs)))
-    folds_list <- vector("list", K)
+    folds_list <- lapply(seq_len(K), function(k) character(0))
+    
     
     for (v in V.levels) {
         idx_v <- names(which(v_obs == v))
         fold_indices_v <- caret::createFolds(y=seq_along(idx_v), k = K, 
                                       list = TRUE, returnTrain = FALSE)
-        folds_list <- lapply(fold_indices_v, function(x) idx_v[x])
+        
+        folds_list <- lapply(seq_len(K), function(x) {
+            c(folds_list[[x]], idx_v[fold_indices_v[[x]]])
+        })
     }
     
     idx_na <- names(which(is.na(v_obs)))
@@ -69,7 +74,7 @@ cross_validate_lambda <- function(Data,
     
    if (NCORES %% K == 0) {
       main_cores <- K
-      sub_cores_per_main <- rep(floor(NCORES / K), K)
+      sub_cores_per_main <- NCORES %/% K
    } else {
        main_cores = NCORES
        sub_cores_per_main = 1
@@ -134,7 +139,7 @@ runFOLDS <- function(x, fold_indices, trainData,
     message("[Fold ", x, "] Fitted model, evaluating lambdas...")
     
     # Evaluate each lambda on the validation set
-    Y_val <- t(trainData[["RNA"]]$data.Generation[,validation_idx])
+    Y_val <- t(as.matrix(trainData[["RNA"]]$data.Generation[,validation_idx]))
     c_obs_val <- trainData$C.preLabel[validation_idx]
     v_obs_val <- trainData$V.preLabel[validation_idx]
     
@@ -182,73 +187,7 @@ runFOLDS <- function(x, fold_indices, trainData,
 #' @importFrom matrixStats logSumExp
 #' @keywords internal
 observed.data.loglik <- function(Y, M, sigma2, probs, c_obs, v_obs){
-
-  n <- dim(Y)[1]; p <- dim(Y)[2]
-  c_dim <- dim(M)[2]; v_dim <- dim(M)[3]
-  cond_probs_row <- probs/rowSums(probs)
-  cond_probs_col <- sweep(probs, 2, colSums(probs), FUN = "/")
-  tot.contrib.vec <- rep(0, n)
-  
-  tot.contrib <- NULL
-  both_known_contrib <- 0
-  v_unknown_contrib <- 0
-  c_unknown_contrib <- 0
-  both_unknown_contrib <- 0
-  
-  # V observed and C observed
-  both_known <- which(!is.na(v_obs) & !is.na(c_obs)) 
-  if (length(both_known) > 0) {
-    both_known_contrib <- sapply(both_known, function(index) {
-        p0 <- probs[c_obs[index], v_obs[index]]
-        if (is.na(p0) | p0 == 0) p0 <- .001
-        sum(dnorm(Y[index, ], mean = M[, c_obs[index], v_obs[index]],
-                sd = sqrt(sigma2[, c_obs[index], v_obs[index]]),
-                log = TRUE)) + log(p0)
-    })
-  }
-  
-  # C unknown
-  c_unknown <- which(!is.na(v_obs) & is.na(c_obs))
-  if (length(c_unknown) > 0) {
-    combos <- expand.grid(i = c_unknown, cc = 1:c_dim)
-    combos$c_unknown_contrib <- mapply(function(i, cc) {
-      p1 <- cond_probs_col[cc, v_obs[i]]
-      if (is.na(p1) | p1 == 0) p1 <- .001
-      logSumExp(dnorm(Y[i, ], mean = M[, cc, v_obs[i]],
-                      sd = sqrt(sigma2[, cc, v_obs[i]]), log = TRUE)) +
-        log(p1)}, combos$i, combos$cc)
-    c_unknown_contrib <- tapply(combos$c_unknown_contrib, combos$i, logSumExp)
-  }
-  
-  # V unknown
-  v_unknown <- which(is.na(v_obs) & !is.na(c_obs))
-  if (length(v_unknown) > 0) {
-    combos <- expand.grid(i = v_unknown, v = 1:v_dim)
-    combos$v_unknown_contrib <- mapply(function(i, v) {
-        p2 <- cond_probs_row[c_obs[i], v]
-        if(is.na(p2) | p2 == 0) p2 <- .001
-      sum(dnorm(Y[i, ], mean = M[, c_obs[i], v],
-                sd = sqrt(sigma2[, c_obs[i], v]), log = TRUE)) + log(p2)
-        }, combos$i, combos$v)
-    v_unknown_contrib <- tapply(combos$v_unknown_contrib, combos$i, logSumExp)
-  }
-  
-  # Both unknown
-  both_unknown <- which(is.na(v_obs) & is.na(c_obs))
-  if (length(both_unknown) > 0) {
-    combos <- expand.grid(i = both_unknown, v = 1:v_dim, cc=1:c_dim)
-    combos$both_unknown_contrib <- mapply(function(i, v, cc) {
-        p3 <- probs[cc, v]
-        if(is.na(p3) | p3 == 0) p3 <- .001
-      logSumExp(dnorm(Y[i, ], mean = M[, cc, v],
-                      sd = sqrt(sigma2[, cc, v]), log = TRUE)) +
-        log(p3)}, combos$i, combos$v, combos$cc)
-    both_unknown_contrib <- tapply(combos$both_unknown_contrib, combos$i, logSumExp)
-  }
-  
-  # Sum together
-  tot.contrib <- sum(c(both_unknown_contrib, v_unknown_contrib, 
-                       c_unknown_contrib, both_known_contrib))
-  
-  return(tot.contrib)
+  Y <- as.matrix(Y)
+  storage.mode(Y) <- "double"
+  observed_data_loglik_rcpp(Y, M, sigma2, probs, as.integer(c_obs), as.integer(v_obs))
 }

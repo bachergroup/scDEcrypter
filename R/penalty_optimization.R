@@ -1,7 +1,7 @@
 
 #' Internal: Proximal operator for L2 penalty
 #'
-#' Proximal operator used in accelerated proximal gradient descent.
+#' Proximal operator used in proximal gradient descent.
 #' This is an internal function and not intended to be called directly by users.
 #'
 #' @param input Numeric vector.
@@ -12,16 +12,10 @@
 #' @return Numeric vector after applying proximal operator.
 #' @keywords internal
 proxOp1 <- function(input, lambda, D, Us) {
-  s <- length(input)
-  v <- crossprod(Us, input)[-s]
-  t1 <- crossprod(D, input)
-  t0 <- sum(t1^2)
-  if (t0 <= lambda^2) {
-    result <- mean(input)*rep(1, s)
-  } else {
-    result <- input - crossprod(D, input)/(sqrt(sum(v^2))/lambda)
-  }
-  return(result)
+  centered <- as.vector(D %*% input)
+  size <- sqrt(sum(centered^2))
+  if (size <= lambda) return(rep(mean(input), length(input)))
+  input - (lambda / size) * centered
 }
 
 
@@ -42,27 +36,41 @@ obj.func <- function(M, a, S, D, lambda) {
   crossprod(M-a, S*(M-a))/2 + lambda*(sqrt(sum(crossprod(D, M)^2)))
 }
 
-#' Accelerated Proximal Gradient Descent
+#' Proximal Gradient Descent
 #'
-#' Performs accelerated proximal gradient descent (APGD) with row-wise penalties.
+#' Performs proximal gradient descent with row-wise penalties.
 #' Used internally for updating mean parameters in the multiway mixture model.
 #'
 #' @param a Numeric vector of observed values.
 #' @param S Numeric weight vector (same length as \code{a}).
 #' @param lambda Penalty parameter (numeric scalar).
 #' @param M.init Optional initial vector for iteration. Defaults to zero vector.
-#' @param max.iter Maximum number of iterations (default: 1e4).
+#' @param max.iter Maximum number of iterations (default: 100).
 #' @param tol Convergence tolerance (default: 1e-10).
 #'
 #' @return Numeric vector of updated parameter estimates.
 #' @export
-AccPGD.Dm <- function(a, S, lambda, M.init = NULL, max.iter = 10, tol = 1e-10)  {
+accpgd_basis_cache <- new.env(parent = emptyenv())
+
+get_accpgd_basis <- function(m.len) {
+  key <- as.character(m.len)
+  basis <- accpgd_basis_cache[[key]]
+  if (is.null(basis)) {
+    D <- diag(rep(1, m.len)) - matrix(1, m.len, m.len)/m.len
+    basis <- list(D = D, Us = svd(D)$u)
+    accpgd_basis_cache[[key]] <- basis
+  }
+  basis
+}
+
+AccPGD.Dm <- function(a, S, lambda, M.init = NULL, max.iter = 100, tol = 1e-10)  {
   # ---------------------------------
   # preliminaries
   # --------------------------------
   m.len <- length(a)
-  D <- diag(rep(1, m.len)) - matrix(1, m.len, m.len)/m.len
-  Us <- svd(D)$u
+  basis <- get_accpgd_basis(m.len)
+  D <- basis$D
+  Us <- basis$Us
   
   comp.grad <- function(a, M, S) {
     S*(M-a)
@@ -74,35 +82,19 @@ AccPGD.Dm <- function(a, S, lambda, M.init = NULL, max.iter = 10, tol = 1e-10)  
     M <- M.init
   }
   
-  alpha <- 1/(max(S))
-  M.prev <- M
-  converged <- FALSE
-  obj.current <- obj.func(M, a, S, D, lambda)[1,1]
-  kk <- 1
-  
-  
-  while (!converged & kk < max.iter) {
-    # extrapolate
-    M.extra <- M + ((kk - 1)/(kk + 2))*(M - M.prev)
-    
-    # prox operator of ||DM||_2
-    M.new <- proxOp1(input = M.extra - alpha*comp.grad(a, M.extra, S), lambda = alpha*lambda, D = D, Us = Us)
-    # epsilon <- 1e-10
-    # M.new <- ifelse(is.na(M.new) | M.new == 0, epsilon, M.new)
-    obj.new <- obj.func(M.new, a, S, D, lambda)[1,1]
-    
-    M.prev <- M
-    M <- M.new
-    
-    if(abs(obj.current - obj.new) <= tol * abs(obj.current)) {
-      # if(kk > 416) {
-      converged <- TRUE
-    } else {
-      obj.current <- obj.new
-    }
-    kk <- kk + 1
+  if (any(!is.finite(c(a, S, lambda, M))) || any(S < 0) || lambda < 0) {
+    stop("Mean update requires finite inputs, nonnegative weights, and nonnegative lambda.")
   }
-  
-  return(M)
-}
+  if (max(S) == 0) return(rep(mean(M), m.len))
+  alpha <- 1 / max(S)
+  # A proximal-gradient step majorizes the quadratic when alpha <= 1/max(S).
+  # Every step decreases the M-step objective in exact arithmetic.
+  for (kk in seq_len(max.iter)) {
+    M.new <- proxOp1(M - alpha * comp.grad(a, M, S), alpha * lambda, D, Us)
+    change <- sum((M.new - M)^2)
+    M <- M.new
+    if (change <= tol^2 * max(1, sum(M^2))) break
+  }
 
+  M
+}

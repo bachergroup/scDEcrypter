@@ -16,54 +16,27 @@
 #' @param sigma2 Numeric 3-dimensional array of estimated variance parameters with 
 #'   dimensions (genes x cell types x viral types), containing the variance of gene 
 #'   expression for each combination of gene, cell type, and viral type.
-#' @param c_obs Integer vector of length matching the number of cells, giving the 
-#'   observed cell type labels for each cell (may contain \code{NA}).
-#' @param v_obs Integer vector of length matching the number of cells, giving the 
-#'   observed viral type labels for each cell (may contain \code{NA}).
 #'
 #' @return A numeric matrix with dimensions (genes x cell types) containing the 
 #'   approximate log-likelihood contribution for each gene in each cell type, 
 #'   aggregated across viral types and weighted by the assignment weights.
 #'
-#' @importFrom stats dnorm
 #' @keywords internal
-approx_complete_data_loglik <- function (Y, M, W, sigma2, c_obs, v_obs){
+#' @export
+approx_complete_data_loglik_fast <- function(Y, M, W, sigma2) {
+  Y <- as.matrix(Y)
+  storage.mode(Y) <- "double"
+  resout <- approx_complete_data_loglik_rcpp(Y, M, W, sigma2)
+  
+  rownames(resout) <- dimnames(M)[[1]]
+  colnames(resout) <- dimnames(M)[[2]]
+  return(resout)
+}
 
-    n_genes <- dim(Y)[2]
-    c_dim <- dim(M)[2]
-    v_dim <- dim(M)[3]
-    
-    if (length(unique(c_obs[!is.na(c_obs)])) != c_dim) {
-        warning(paste0(
-            "Number of unique c_obs labels does not match that in the mean matrix."
-        ))
-    }
-    if (length(unique(v_obs[!is.na(v_obs)])) != v_dim) {
-        warning(paste0(
-            "Number of unique v_obs labels does not match that in the mean matrix."
-        ))
-    }
-    
-    ll_gene_celltype <- matrix(0, nrow = n_genes, ncol = c_dim)
-    
-    for (cc in seq_len(c_dim)) {
-      tot_contrib_1 <- array(0, dim=c(n_genes, v_dim))
-      log_likelihood_kc <- NULL
-      for(kk in seq_len(n_genes)){
-          for(vv in seq_len(v_dim)) {
-              all_cells_ll <- dnorm(Y[, kk],
-                                    mean = M[kk, cc, vv],
-                                    sd   = sqrt(sigma2[kk, cc, vv]),
-                                    log  = TRUE) * W[, cc, vv]
-              all_cells_ll <- all_cells_ll[is.finite(all_cells_ll)]
-              tot_contrib_1[kk,vv] <- sum(all_cells_ll)
-           }
-      }
-      ll_gene_celltype[, cc] <- rowSums(tot_contrib_1)
-    }
-    rownames(ll_gene_celltype) <- dimnames(M)[[1]]
-    colnames(ll_gene_celltype) <- dimnames(M)[[2]]
-    return(ll_gene_celltype)
+approx_complete_data_loglik_pair_fast <- function(Y, M.alt, sigma2.alt, M.null, sigma2.null, W) {
+  Y <- as.matrix(Y)
+  storage.mode(Y) <- "double"
+  approx_complete_data_loglik_pair_rcpp(Y, M.alt, sigma2.alt, M.null, sigma2.null, W)
 }
 
 #' Estimate Mean Expression per Gene, Cell Type, and Condition (DE)
@@ -96,29 +69,92 @@ approx_complete_data_loglik <- function (Y, M, W, sigma2, c_obs, v_obs){
 #' using mean weights to account for condition effects.
 #'
 #' keywords internal
+safe_weights <- function(weights) {
+  if (is.null(dim(weights))) {
+    stop("weights must be a matrix or 3D array, not a vector.")
+  }
+
+  if (length(dim(weights)) == 2L) {
+    weights <- array(weights, dim = c(nrow(weights), ncol(weights), 1L))
+  }
+
+  if (length(dim(weights)) != 3L) {
+    stop("weights must have 2 or 3 dimensions.")
+  }
+
+  weights
+}
+
+resolve_comp_status_indices <- function(W, compStatus) {
+
+  if (is.character(compStatus)) {
+    status_names <- dimnames(W)[[3]]
+    if (is.null(status_names)) {
+      status_names <- paste0("status_", seq_len(dim(W)[3]))
+      dimnames(W)[[3]] <- status_names
+    }
+    comp_idx <- match(compStatus, status_names)
+    if (anyNA(comp_idx)) {
+      stop("All compStatus values must match condition names in W.")
+    }
+    return(comp_idx)
+  }
+
+  comp_idx <- as.integer(compStatus)
+  if (anyNA(comp_idx) || any(comp_idx < 1L | comp_idx > dim(W)[3])) {
+    stop("compStatus indices must be between 1 and the number of conditions.")
+  }
+
+  comp_idx
+}
+
+weighted_means_from_weights <- function(Y, weights) {
+  weights <- safe_weights(weights)
+
+  if (dim(weights)[3] == 1L) {
+    weights_mat <- weights[, , 1L]
+  } else {
+    # Collapse condition dimension to one 2D matrix for weighted means.
+    weights_mat <- apply(weights, c(1, 2), sum)
+  }
+
+  if (!is.matrix(weights_mat)) {
+    weights_mat <- as.matrix(weights_mat)
+  }
+
+  if (nrow(weights_mat) != nrow(Y)) {
+    stop("weights and Y must have the same number of rows (cells).")
+  }
+
+  weight_sums <- colSums(weights_mat)
+  weighted_totals <- t(crossprod(weights_mat, Y))
+  sweep(weighted_totals, 2, weight_sums, "/")
+}
+
 DE_mu <- function(Y, W, compStatus) {
- 
-    M_out <- array(0, c(dim(Y)[2], dim(W)[2], dim(W)[3]),
-                   dimnames = list(colnames(Y), dimnames(W)[[2]], dimnames(W)[[3]]))
-    
-    for (j in seq_len(dim(Y)[2])) {
-        M_out[j, , compStatus] <- apply(W[, , compStatus] * Y[, j], c(2, 3), sum) /
-            apply(W[, , compStatus], c(2, 3), sum)
+  comp_idx <- resolve_comp_status_indices(W, compStatus)
+  rest_idx <- setdiff(seq_len(dim(W)[3]), comp_idx)
+
+  M_out <- array(0, c(dim(Y)[2], dim(W)[2], dim(W)[3]),
+                 dimnames = list(colnames(Y), dimnames(W)[[2]], dimnames(W)[[3]]))
+
+  for (status_idx in comp_idx) {
+    weights_slice <- W[, , status_idx, drop = FALSE]
+    if (length(dim(weights_slice)) == 3L && dim(weights_slice)[3] == 1L) {
+      weights_slice <- weights_slice[, , 1L, drop = FALSE]
     }
-    
-    rest_status <- setdiff(dimnames(W)[[3]], compStatus)
-    if (length(rest_status) > 0) {
-        W_rest <- apply(W[, , rest_status, drop = FALSE], c(1, 2), mean)
-        W_rest <- array(rep(W_rest, length(rest_status)),
-                        dim = c(nrow(W_rest), ncol(W_rest), length(rest_status)))
-        
-        denom_rest <- apply(W_rest, c(2, 3), sum)
-        for (j in seq_len(ncol(Y))) {
-            M_out[j, , rest_status] <- apply(W_rest * Y[, j], c(2, 3), sum) / denom_rest
-        }
+    M_out[, , status_idx] <- weighted_means_from_weights(Y, weights_slice)
+  }
+
+  if (length(rest_idx) > 0) {
+    W_rest <- apply(W[, , rest_idx, drop = FALSE], c(1, 2), mean)
+    rest_means <- weighted_means_from_weights(Y, W_rest)
+    for (status_idx in rest_idx) {
+      M_out[, , status_idx] <- rest_means
     }
-    
-    return(M_out)
+  }
+
+  M_out
 }
 
 #' Estimate Mean Expression Under Null Hypothesis (DE)
@@ -149,35 +185,27 @@ DE_mu <- function(Y, W, compStatus) {
 #'
 #' @keywords internal
 DE_mu_null <- function(Y, W, compStatus) {
-  V_dim <- dim(W)[3]
-  M_out <- array(0, c(dim(Y)[2], dim(W)[2], V_dim),
-                   dimnames = list(colnames(Y), dimnames(W)[[2]], dimnames(W)[[3]]))
+  comp_idx <- resolve_comp_status_indices(W, compStatus)
+  rest_idx <- setdiff(seq_len(dim(W)[3]), comp_idx)
 
-  W_combined <- apply(W[, , compStatus, drop = FALSE], c(1, 2), mean)
+  M_out <- array(0, c(dim(Y)[2], dim(W)[2], dim(W)[3]),
+                 dimnames = list(colnames(Y), dimnames(W)[[2]], dimnames(W)[[3]]))
 
-  W_combined_array <- array(rep(W_combined, length(compStatus)),
-                            dim = c(nrow(W_combined), ncol(W_combined), length(compStatus)))
-
-  denom_combined <- apply(W_combined_array, c(2, 3), sum)
-
-  for (j in seq_len(ncol(Y))) {
-    shared_mean <- apply(W_combined_array * Y[, j], c(2, 3), sum) / denom_combined
-    M_out[j, , compStatus] <- shared_mean
+  W_combined <- apply(W[, , comp_idx, drop = FALSE], c(1, 2), mean)
+  shared_mean <- weighted_means_from_weights(Y, W_combined)
+  for (status_idx in comp_idx) {
+    M_out[, , status_idx] <- shared_mean
   }
 
-  rest_status <- setdiff(seq_len(V_dim), compStatus)
-  if (length(rest_status) > 0) {
-    W_rest <- apply(W[, , rest_status, drop = FALSE], c(1, 2), mean)
-    W_rest <- array(rep(W_rest, length(rest_status)),
-                    dim = c(nrow(W_rest), ncol(W_rest), length(rest_status)))
-
-    denom_rest <- apply(W_rest, c(2, 3), sum)
-    for (j in seq_len(ncol(Y))) {
-      M_out[j, , rest_status] <- apply(W_rest * Y[, j], c(2, 3), sum) / denom_rest
+  if (length(rest_idx) > 0) {
+    W_rest <- apply(W[, , rest_idx, drop = FALSE], c(1, 2), mean)
+    rest_means <- weighted_means_from_weights(Y, W_rest)
+    for (status_idx in rest_idx) {
+      M_out[, , status_idx] <- rest_means
     }
   }
 
-  return(M_out)
+  M_out
 }
 
 #' Estimate Variance per Gene, Cell Type, and Condition (DE)
@@ -196,17 +224,32 @@ DE_mu_null <- function(Y, W, compStatus) {
 #'   weighted variance estimates. Minimum variance floor of 0.1 is applied.
 #'
 #' @keywords internal
-DE_sigma2 <- function(Y, W, M){
-  p <- dim(Y)[2]
-  sigma2 <- array(0, dim=dim(M))
+DE_sigma2 <- function(Y, W, M) {
+  sigma2 <- array(0, dim = dim(M))
   dimnames(sigma2) <- dimnames(M)
-  W.tot <- apply(W, c(2,3), sum)
-  for(kk in seq_len(p)){
-    for(c.ind in seq_len(dim(M)[2])){
-      for(v.ind in seq_len(dim(M)[3])){
-        sigma2[kk, c.ind, v.ind] <- max(sum(W[, c.ind, v.ind] * (Y[, kk] - M[kk, c.ind, v.ind])^2) / W.tot[c.ind, v.ind], .1)      
-      }
+
+  Y_sq <- Y * Y
+
+  for (status_idx in seq_len(dim(W)[3])) {
+    weights <- W[, , status_idx, drop = FALSE]
+    if (length(dim(weights)) > 2L) {
+      weights <- weights[, , 1]
     }
+    if (!is.matrix(weights)) {
+      weights <- as.matrix(weights)
+    }
+    weight_sums <- colSums(weights)
+
+    first_moment <- t(crossprod(weights, Y))
+    first_moment <- sweep(first_moment, 2, weight_sums, "/")
+
+    second_moment <- t(crossprod(weights, Y_sq))
+    second_moment <- sweep(second_moment, 2, weight_sums, "/")
+
+    sigma2[, , status_idx] <- pmax(
+      second_moment - 2 * M[, , status_idx] * first_moment + M[, , status_idx]^2,
+      0.1
+    )
   }
   return(sigma2)
 }
@@ -230,6 +273,19 @@ DE_probs <- function(Y, W){
   out.probs <- apply(W, c(2,3), sum)/dim(Y)[1]
   dimnames(out.probs) <- dimnames(W)[2:3]
   return(out.probs)
+}
+
+de_lrt_exceeds_from_weights <- function(Y, W, compGroups, lrt) {
+    M.alt <- DE_mu(Y = Y, W = W, compStatus = compGroups)
+    sigma2.alt <- DE_sigma2(Y, W, M.alt)
+
+    M.null <- DE_mu_null(Y, W, compGroups)
+    sigma2.null <- DE_sigma2(Y, W, M.null)
+
+    ll_pair <- approx_complete_data_loglik_pair_fast(Y, M.alt, sigma2.alt, M.null, sigma2.null, W)
+    perm_lrt <- -2 * (ll_pair[["ll.null"]] - ll_pair[["ll.alternative"]])
+
+    (perm_lrt >= lrt) * 1L
 }
 
 
@@ -270,8 +326,14 @@ compute_logFC <- function(M, compStatus = NULL) {
     for (i in seq_len(ncol(combs))) {
         v1 <- combs[1, i]
         v2 <- combs[2, i]
-        
-        df <- M[, , v1] - M[, , v2]
+
+        df1 <- M[, , v1, drop = FALSE]
+        df2 <- M[, , v2, drop = FALSE]
+        df <- df1 - df2
+
+        if (is.null(dim(df)) || length(dim(df)) < 2L) {
+            df <- matrix(df, nrow = length(df), ncol = 1L)
+        }
 
         colnames(df) <- paste0("logFC_", colnames(df), "_", v1, "_vs_", v2)
         

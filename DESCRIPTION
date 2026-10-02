@@ -1,9 +1,17 @@
 Package: scDEcrypter
-Title: An R package uses limited information to predict virus cell infection, and does differentially expressed gene expression analysis
-Version: 0.3.0
-Authors@R: 
-    person("Luer", "Zhong", , "luerzhong@ufl.edu", role = c("aut", "cre"))
-Description: What the package does (one paragraph).
+Title: Viral Infection Analysis with Partially Labeled Single-Cell RNA Sequencing Data
+Version: 0.8.7
+Authors@R: c(
+    person(given="Rhonda", family="Bacher", email="rbacher@ufl.edu", role = c("aut", "cre")),
+    person(given="Aaron", family="Molstad", role = "aut"),
+    person(given="Luer", family="Zhong", email="luerzhong@ufl.edu", role = "aut")
+    )
+Author: Rhonda Bacher [aut, cre], Aaron Molstad [aut], Luer Zhong [aut]
+Maintainer: Rhonda Bacher <rbacher@ufl.edu>
+Description: Fits a penalized Gaussian multiway mixture model to transformed
+    single-cell RNA sequencing data with partially observed infection labels.
+    Estimates infection-state probabilities and performs permutation-based
+    differential expression tests on held-out cells.
 License: CC BY 4.0 + file LICENSE
 Encoding: UTF-8
 Depends: 
@@ -11,16 +19,20 @@ Depends:
 LazyData: true
 LazyDataCompression: bzip2
 Roxygen: list(markdown = TRUE)
-RoxygenNote: 7.3.2
+RoxygenNote: 7.3.3
 VignetteBuilder: knitr
 Suggests:
     knitr,
     rmarkdown
 Imports:
     stats,
+    Rcpp,
     utils,
     matrixStats,
+    Matrix,
     caret,
     transformGamPoi,
     Seurat (>= 5.0.0),
+    SeuratObject,
     pbmcapply
+LinkingTo: Rcpp, RcppArmadillo

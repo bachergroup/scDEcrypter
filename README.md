@@ -10,7 +10,16 @@ devtools::install_github("https://github.com/bachergroup/scDEcrypter")
 library(scDEcrypter)
 ```
 
-## Author
+## Dependencies
+`transformGamPoi` is a required dependency from Bioconductor and may need to be installed manually before installing `scDEcrypter`
+```R
+if (!requireNamespace("BiocManager", quietly = TRUE)) {
+  install.packages("BiocManager")
+}
+BiocManager::install("transformGamPoi")
+```
+
+## Authors
 Luer Zhong <luerzhong@ufl.edu>
 
 Aaron Molstad <amolstad@umn.edu>
@@ -19,3 +28,5 @@ Rhonda Bacher <rbacher@ufl.edu>
 
 ## Cite
 
+Luer Zhong, Karl Ensberg, Scott Tibbets, Aaron J. Molstad, Rhonda Bacher.  scDEcrypter: Uncertainty-aware differential expression analysis for viral infection in scRNA-seq. 
+bioRxiv (pre-print). doi: https://doi.org/10.64898/2026.03.09.710583 

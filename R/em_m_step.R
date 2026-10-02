@@ -36,10 +36,9 @@ update_mu <- function(Y, M, sigma2, W, lambda) {
     for (c in seq_len(C_dim)) {
       for (v in seq_len(V_dim)) {
         y_j <- Y[, j] # per gene, all cells
-        epsilon_icv <- 1 / W[, c, v] # weight per cell
-
-        y_bar_jcv[j,c,v] <- sum(y_j / epsilon_icv) # store for gene
-        epsilon_cv[j, c, v] <- sum(1 / epsilon_icv) # store for gene
+        weights <- W[, c, v]
+        y_bar_jcv[j,c,v] <- sum(weights * y_j)
+        epsilon_cv[j, c, v] <- sum(weights)
       }
     }
     for (c in seq_len(C_dim)) {
@@ -47,7 +46,8 @@ update_mu <- function(Y, M, sigma2, W, lambda) {
      if(all(epsilon_cv[j,c,] > 0)) {
       y_tilde_jc <- y_bar_jcv[j,c,] / epsilon_cv[j,c,]
       a <- as.vector(t(y_tilde_jc))
-      S <- as.vector(t(sigma2[j,c,] / epsilon_cv[j,c,])) 
+      # Negative expected Gaussian log-likelihood has curvature sum(W) / sigma2.
+      S <- as.vector(t(epsilon_cv[j,c,] / sigma2[j,c,]))
       # Store the updated mean values
       mu_j_updated <- AccPGD.Dm(a = a, S = S, lambda = lambda,
                                 M.init = as.vector(t(M[j,c,])),
@@ -121,19 +121,9 @@ update_mu_nopenalty <- function(Y, M, sigma2, W){
 #'
 #' @keywords internal
 M_step_variance <- function(Y, W, M){
-	p <- dim(Y)[2]
-	sigma2 <- array(0, dim=dim(M))
-	dimnames(sigma2) <- dimnames(M)
-	W.tot <- apply(W, c(2,3), sum)
-	W.tot[W.tot ==0] <- .1
-	for(kk in seq_len(p)){
-	  for(c.ind in 1:dim(M)[2]){
-	    for(v.ind in 1:dim(M)[3]){
-	      sigma2[kk, c.ind, v.ind] <- max(sum(W[, c.ind, v.ind] * (Y[, kk] - M[kk, c.ind, v.ind])^2) / W.tot[c.ind, v.ind], .1)
-	    }
-	  }
-	}
-	return(sigma2)
+  sigma2 <- de_sigma2_rcpp(Y, W, M)
+  dimnames(sigma2) <- dimnames(M)
+  sigma2
 	}
 
 #' Estimate Mixing Proportions (M-step)
@@ -158,4 +148,3 @@ M_step_variance <- function(Y, W, M){
 M_step_probs <- function(Y, W){
   apply(W, c(2,3), sum)/dim(Y)[1]
 }
-
