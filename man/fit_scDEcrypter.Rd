@@ -46,20 +46,23 @@ mean estimates.}
 
 \item{v_star}{Integer. Number of variant clusters to fit.}
 
-\item{lambda.vec}{Numeric vector of penalty parameters. A separate
-model is fitted for each \code{lambda}.}
+\item{lambda.vec}{Numeric vector of per-cell penalty parameters. For
+\eqn{n} cells, each fit maximizes \eqn{\ell_n - n\lambda P(\mu)}.
+A separate model is fitted for each value.}
 }
 \value{
 A list containing:
 \describe{
-\item{\code{M_list}}{List of estimated means (\code{p x C x V})
+\item{\code{M_generation}}{Estimated means (\code{p x C x V})
 for each \code{lambda}.}
-\item{\code{sigma2_list}}{List of estimated variances
+\item{\code{sigma2_generation}}{Estimated variances
 (\code{p x C x V}) for each \code{lambda}.}
-\item{\code{probs_list}}{List of estimated mixing proportions
+\item{\code{probs_generation}}{Estimated mixing proportions
 (\code{C x V}) for each \code{lambda}.}
-\item{\code{weights_list}}{List of posterior responsibilities
+\item{\code{weights_generation}}{Posterior responsibilities
 (\code{n x C x V}) for each \code{lambda}.}
+\item{\code{objective_generation}}{Penalized observed-data objective
+at initialization and after every retained EM iteration.}
 }
 }
 \description{

@@ -19,13 +19,13 @@ Depends:
 LazyData: true
 LazyDataCompression: bzip2
 Roxygen: list(markdown = TRUE)
-RoxygenNote: 7.3.3
 VignetteBuilder: knitr
 Suggests:
     knitr,
     rmarkdown
 Imports:
     stats,
+    methods,
     Rcpp,
     utils,
     matrixStats,
@@ -36,3 +36,4 @@ Imports:
     SeuratObject,
     pbmcapply
 LinkingTo: Rcpp, RcppArmadillo
+Config/roxygen2/version: 8.1.0

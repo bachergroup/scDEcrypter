@@ -167,7 +167,7 @@ preprocess_scDEcrypter <- function(Data,
 #' Selects the most variable genes within each group of cells defined by a partitioning column in a Seurat object.
 #'
 #' @param seurat_obj A Seurat object containing single-cell RNA-seq data.
-#' @param partition_colname Character. Name of the cell-level metadata column used to partition cells into groups (e.g., cell type, cluster).
+#' @param partition_colname Character or \code{NULL}. Name of the cell-level metadata column used to partition cells into groups (e.g., cell type, cluster). If \code{NULL}, cells are not partitioned and the top genes are selected across all cells.
 #' @param n_genes_per_group Integer. Number of top variable genes to rank per group (default: 500).
 #'
 #' @return A character vector of unique gene names with highest variance across the specified groups.
@@ -182,12 +182,18 @@ preprocess_scDEcrypter <- function(Data,
 get_top_genes <- function(seurat_obj, partition_colname="C.preLabel", 
 													n_genes_per_group = 50) {
 
-  vargroup <- seurat_obj[[partition_colname]]
-	vargroup <- setNames(vargroup[[1]], rownames(vargroup))
+  if (is.null(partition_colname)) {
+    vargroup <- setNames(rep(1L, ncol(seurat_obj)), colnames(seurat_obj))
+  } else {
+    vargroup <- seurat_obj[[partition_colname]]
+    vargroup <- setNames(vargroup[[1]], rownames(vargroup))
+    vargroup <- vargroup[!is.na(vargroup)]
+  }
 	
   top_genesA <- sapply(unique(vargroup), function(x) {
 							tmpCells <- names(which(vargroup == x))
-							Ysub <- seurat_obj[["RNA"]]$data.Generation[, tmpCells]
+							Ysub <- seurat_obj[["RNA"]]$data.Generation[, tmpCells, drop = FALSE]
+							if (ncol(Ysub) < 2) return(NULL)
 							# sparse-safe row variance: E[x^2] - E[x]^2, scaled to sample variance
 							n <- ncol(Ysub)
 							rm1 <- Matrix::rowMeans(Ysub)
@@ -196,7 +202,7 @@ get_top_genes <- function(seurat_obj, partition_colname="C.preLabel",
 							all_var_ord <- all_var[order(all_var, decreasing = TRUE)[1:n_genes_per_group]]
     return(names(all_var_ord))
   })
-  top_genes <- unique(as.vector(top_genesA))
+  top_genes <- unique(as.vector(unlist(top_genesA)))
   return(top_genes)
 }
 

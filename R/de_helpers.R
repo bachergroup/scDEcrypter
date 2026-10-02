@@ -39,36 +39,13 @@ approx_complete_data_loglik_pair_fast <- function(Y, M.alt, sigma2.alt, M.null, 
   approx_complete_data_loglik_pair_rcpp(Y, M.alt, sigma2.alt, M.null, sigma2.null, W)
 }
 
-#' Estimate Mean Expression per Gene, Cell Type, and Condition (DE)
+#' Coerce Weights to a Three-Dimensional Array
 #'
-#' Computes weighted mean expression matrices for the alternative hypothesis
-#' in differential expression testing, where specified conditions show expression
-#' differences while others share effects.
+#' @param weights A matrix or three-dimensional array of weights.
 #'
-#' @param Y A numeric matrix of dimension \eqn{(n \times p)}, where
-#'   \eqn{n} is the number of samples (cells) and \eqn{p} is the
-#'   number of features (genes).
-#' @param W A numeric array of dimension \eqn{(n \times C \times V)},
-#'   where \eqn{C} is the number of cell types (or classes),
-#'   and \eqn{V} is the number of conditions (or contrasts).
-#'   Each slice \code{W[i,,]} contains the posterior weights for
-#'   sample \eqn{i}.
-#' @param compStatus Integer or character vector specifying which
-#'   conditions should have separate mean estimates. Other conditions
-#'   will have their means estimated from the combined data.
+#' @return A three-dimensional array of weights.
 #'
-#' @return A numeric array of dimension \eqn{(p \times C \times V)}
-#'   containing the weighted mean expression values. \code{M.out[j, c, v]}
-#'   is the estimated mean of gene \eqn{j} in cell type \eqn{c} under
-#'   condition \eqn{v}.
-#'
-#' @details
-#' For conditions specified in \code{compStatus}, mean estimates are
-#' computed separately using only samples from those conditions.
-#' For other conditions, means are estimated as the average across all samples,
-#' using mean weights to account for condition effects.
-#'
-#' keywords internal
+#' @keywords internal
 safe_weights <- function(weights) {
   if (is.null(dim(weights))) {
     stop("weights must be a matrix or 3D array, not a vector.")
@@ -131,6 +108,36 @@ weighted_means_from_weights <- function(Y, weights) {
   sweep(weighted_totals, 2, weight_sums, "/")
 }
 
+#' Estimate Mean Expression per Gene, Cell Type, and Condition (DE)
+#'
+#' Computes weighted mean expression matrices for the alternative hypothesis
+#' in differential expression testing, where specified conditions show expression
+#' differences while others share effects.
+#'
+#' @param Y A numeric matrix of dimension \eqn{(n \times p)}, where
+#'   \eqn{n} is the number of samples (cells) and \eqn{p} is the
+#'   number of features (genes).
+#' @param W A numeric array of dimension \eqn{(n \times C \times V)},
+#'   where \eqn{C} is the number of cell types (or classes),
+#'   and \eqn{V} is the number of conditions (or contrasts).
+#'   Each slice \code{W[i,,]} contains the posterior weights for
+#'   sample \eqn{i}.
+#' @param compStatus Integer or character vector specifying which
+#'   conditions should have separate mean estimates. Other conditions
+#'   will have their means estimated from the combined data.
+#'
+#' @return A numeric array of dimension \eqn{(p \times C \times V)}
+#'   containing the weighted mean expression values. \code{M.out[j, c, v]}
+#'   is the estimated mean of gene \eqn{j} in cell type \eqn{c} under
+#'   condition \eqn{v}.
+#'
+#' @details
+#' For conditions specified in \code{compStatus}, mean estimates are
+#' computed separately using only samples from those conditions.
+#' For other conditions, means are estimated as the average across all samples,
+#' using mean weights to account for condition effects.
+#'
+#' @keywords internal
 DE_mu <- function(Y, W, compStatus) {
   comp_idx <- resolve_comp_status_indices(W, compStatus)
   rest_idx <- setdiff(seq_len(dim(W)[3]), comp_idx)

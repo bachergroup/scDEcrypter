@@ -4,15 +4,16 @@
 \name{scDEcrypter-package}
 \alias{scDEcrypter}
 \alias{scDEcrypter-package}
-\title{scDEcrypter: An R package uses limited information to predict virus cell infection, and does differentially expressed gene expression analysis}
+\title{scDEcrypter: Viral Infection Analysis with Partially Labeled Single-Cell RNA Sequencing Data}
 \description{
-What the package does (one paragraph).
+Fits a penalized Gaussian multiway mixture model to transformed single-cell RNA sequencing data with partially observed infection labels. Estimates infection-state probabilities and performs permutation-based differential expression testing.
 }
 \author{
 \strong{Maintainer}: Rhonda Bacher \email{rbacher@ufl.edu}
 
 Authors:
 \itemize{
+  \item Rhonda Bacher \email{rbacher@ufl.edu}
   \item Aaron Molstad
   \item Luer Zhong \email{luerzhong@ufl.edu}
 }

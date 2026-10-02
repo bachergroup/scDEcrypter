@@ -36,6 +36,19 @@ obj.func <- function(M, a, S, D, lambda) {
   crossprod(M-a, S*(M-a))/2 + lambda*(sqrt(sum(crossprod(D, M)^2)))
 }
 
+accpgd_basis_cache <- new.env(parent = emptyenv())
+
+get_accpgd_basis <- function(m.len) {
+  key <- as.character(m.len)
+  basis <- accpgd_basis_cache[[key]]
+  if (is.null(basis)) {
+    D <- diag(rep(1, m.len)) - matrix(1, m.len, m.len)/m.len
+    basis <- list(D = D, Us = svd(D)$u)
+    accpgd_basis_cache[[key]] <- basis
+  }
+  basis
+}
+
 #' Proximal Gradient Descent
 #'
 #' Performs proximal gradient descent with row-wise penalties.
@@ -50,19 +63,6 @@ obj.func <- function(M, a, S, D, lambda) {
 #'
 #' @return Numeric vector of updated parameter estimates.
 #' @export
-accpgd_basis_cache <- new.env(parent = emptyenv())
-
-get_accpgd_basis <- function(m.len) {
-  key <- as.character(m.len)
-  basis <- accpgd_basis_cache[[key]]
-  if (is.null(basis)) {
-    D <- diag(rep(1, m.len)) - matrix(1, m.len, m.len)/m.len
-    basis <- list(D = D, Us = svd(D)$u)
-    accpgd_basis_cache[[key]] <- basis
-  }
-  basis
-}
-
 AccPGD.Dm <- function(a, S, lambda, M.init = NULL, max.iter = 100, tol = 1e-10)  {
   # ---------------------------------
   # preliminaries

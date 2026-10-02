@@ -19,7 +19,7 @@ proxOp1(input, lambda, D, Us)
 Numeric vector after applying proximal operator.
 }
 \description{
-Proximal operator used in accelerated proximal gradient descent.
+Proximal operator used in proximal gradient descent.
 This is an internal function and not intended to be called directly by users.
 }
 \keyword{internal}

@@ -13,7 +13,7 @@ get_top_genes(
 \arguments{
 \item{seurat_obj}{A Seurat object containing single-cell RNA-seq data.}
 
-\item{partition_colname}{Character. Name of the cell-level metadata column used to partition cells into groups (e.g., cell type, cluster).}
+\item{partition_colname}{Character or \code{NULL}. Name of the cell-level metadata column used to partition cells into groups (e.g., cell type, cluster). If \code{NULL}, cells are not partitioned and the top genes are selected across all cells.}
 
 \item{n_genes_per_group}{Integer. Number of top variable genes to rank per group (default: 500).}
 }

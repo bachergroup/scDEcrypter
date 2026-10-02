@@ -2,41 +2,17 @@
 % Please edit documentation in R/de_helpers.R
 \name{safe_weights}
 \alias{safe_weights}
-\title{Estimate Mean Expression per Gene, Cell Type, and Condition (DE)}
+\title{Coerce Weights to a Three-Dimensional Array}
 \usage{
 safe_weights(weights)
 }
 \arguments{
-\item{Y}{A numeric matrix of dimension \eqn{(n \times p)}, where
-\eqn{n} is the number of samples (cells) and \eqn{p} is the
-number of features (genes).}
-
-\item{W}{A numeric array of dimension \eqn{(n \times C \times V)},
-where \eqn{C} is the number of cell types (or classes),
-and \eqn{V} is the number of conditions (or contrasts).
-Each slice \code{W[i,,]} contains the posterior weights for
-sample \eqn{i}.}
-
-\item{compStatus}{Integer or character vector specifying which
-conditions should have separate mean estimates. Other conditions
-will have their means estimated from the combined data.}
+\item{weights}{A matrix or three-dimensional array of weights.}
 }
 \value{
-A numeric array of dimension \eqn{(p \times C \times V)}
-containing the weighted mean expression values. \code{M.out[j, c, v]}
-is the estimated mean of gene \eqn{j} in cell type \eqn{c} under
-condition \eqn{v}.
+A three-dimensional array of weights.
 }
 \description{
-Computes weighted mean expression matrices for the alternative hypothesis
-in differential expression testing, where specified conditions show expression
-differences while others share effects.
+Coerce Weights to a Three-Dimensional Array
 }
-\details{
-For conditions specified in \code{compStatus}, mean estimates are
-computed separately using only samples from those conditions.
-For other conditions, means are estimated as the average across all samples,
-using mean weights to account for condition effects.
-
-keywords internal
-}
+\keyword{internal}

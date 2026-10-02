@@ -36,6 +36,7 @@
 #'   fold changes, and testing method, plus
 #'   \code{panel_genes} (the tested genes that were in the training panel) and,
 #'   if requested, \code{null.stat}.
+#' @importFrom stats p.adjust pchisq
 #' @export
 deTest <- function(mod_results, testData, testingGenes, compGroups,
                         method = c("permutation", "perm", "chisq"),
